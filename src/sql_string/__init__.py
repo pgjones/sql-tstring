@@ -76,7 +76,7 @@ def sql(query: str, values: dict[str, Any]) -> tuple[str, list[Any]]:
                     identifier = node.this
                     value = values[identifier]
                     context = _context(node)
-                    if isinstance(value, Absent):
+                    if value is Absent or isinstance(value, Absent):
                         match context:
                             case exp.Values():
                                 new_node = parse_one("DEFAULT")
