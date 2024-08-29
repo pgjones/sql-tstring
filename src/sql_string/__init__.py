@@ -2,17 +2,19 @@ import re
 from contextvars import ContextVar
 from dataclasses import dataclass, field, replace
 from types import TracebackType
-from typing import Any, Container
+from typing import Any, Container, Literal
 
 from sqlglot import exp, parse, parse_one, to_identifier
 from sqlglot._typing import E
 
 BRACES_RE = re.compile(r"(\{.*?\}\}?)")
+PLACEHOLDER_RE = re.compile(r"\?")
 
 
 @dataclass
 class Context:
     columns: Container[str] = field(default_factory=list)
+    dialect: Literal["asyncpg", "sql"] = "sql"
     tables: Container[str] = field(default_factory=list)
 
 
@@ -93,7 +95,11 @@ def sql(query: str, values: dict[str, Any]) -> tuple[str, list[Any]]:
                             result_values.append(value)
                         node.parent.set(node.arg_key, new_node, node.index)
         result_query += str(expressions)
-    return str(result_query), result_values
+
+    if ctx.dialect == "asyncpg":
+        result_query = _sql_to_asyncpg(result_query)
+
+    return result_query, result_values
 
 
 def _braces_to_placeholders(raw: str) -> str:
@@ -139,3 +145,14 @@ def _remove_node(node: E) -> None:
         case _:
             node.parent.set(node.arg_key, None, node.index)
             _remove_node(node.parent)
+
+
+def _sql_to_asyncpg(raw: str) -> str:
+    last_position = 0
+    result = ""
+    for index, match_ in enumerate(PLACEHOLDER_RE.finditer(raw), start=1):
+        result += raw[last_position : match_.start()]
+        result += f"${index}"
+        last_position = match_.end()
+    result += raw[last_position:]
+    return result
