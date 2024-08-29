@@ -86,13 +86,14 @@ def sql(query: str, values: dict[str, Any]) -> tuple[str, list[Any]]:
                             case exp.Ordered():
                                 _remove_node(node)
                     else:
-                        if isinstance(context, exp.Ordered):
-                            if value not in ctx.columns:
-                                raise ValueError(f"{value} is not a valid column")
-                            new_node = to_identifier(value)
-                        else:
-                            new_node = parse_one("?")
-                            result_values.append(value)
+                        match context:
+                            case exp.Ordered():
+                                if value not in ctx.columns:
+                                    raise ValueError(f"{value} is not a valid column")
+                                new_node = to_identifier(value)
+                            case _:
+                                new_node = parse_one("?")
+                                result_values.append(value)
                         node.parent.set(node.arg_key, new_node, node.index)
         result_query += str(expressions)
 
