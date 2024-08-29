@@ -50,6 +50,11 @@ def test_update(query: str, expected_query: str, expected_values: list[Any]) -> 
             "INSERT INTO x (a, b) VALUES (DEFAULT, ?)",
             [2],
         ),
+        (
+            "INSERT INTO x (b) VALUES ({b}) ON CONFLICT DO UPDATE SET b = {b}",
+            "INSERT INTO x (b) VALUES (?) ON CONFLICT DO UPDATE SET b = ?",
+            [2, 2],
+        ),
     ],
 )
 def test_insert(query: str, expected_query: str, expected_values: list[Any]) -> None:
