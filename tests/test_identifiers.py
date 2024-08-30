@@ -7,7 +7,7 @@ def test_order_by() -> None:
     a = Absent()
     b = "x"
     with sql_context(columns=["x"]):
-        assert ("SELECT x FROM y ORDER BY x", []) == sql(
+        assert ("select x from y order by x", []) == sql(
             "SELECT x FROM y ORDER BY {a}, {b}", locals()
         )
 
@@ -17,7 +17,7 @@ def test_order_by_direction() -> None:
     a = "ASC"
     b = "x"
     with sql_context(columns=["x"]):
-        assert ("SELECT x FROM y ORDER BY x ASC", []) == sql(
+        assert ("select x from y order by x asc", []) == sql(
             "SELECT x FROM y ORDER BY {b} {a}", locals()
         )
 
@@ -29,20 +29,18 @@ def test_order_by_invalid_column() -> None:
         sql("SELECT x FROM y ORDER BY {a}, {b}", locals())
 
 
-@pytest.mark.xfail
 @pytest.mark.parametrize(
     "lock_type, expected",
     (
-        ("", "SELECT x FROM y FOR UPDATE"),
-        ("NOWAIT", "SELECT x FROM y FOR UPDATE NOWAIT"),
-        ("SKIP LOCKED", "SELECT x FROM y FOR UPDATE SKIP LOCKED"),
+        ("", "select x from y for update"),
+        ("NOWAIT", "select x from y for update nowait"),
+        ("SKIP LOCKED", "select x from y for update skip locked"),
     ),
 )
 def test_lock(lock_type: str, expected: str) -> None:
-    assert (expected, []) == sql("SELECT x FROM y FOR UPDATE OF {lock_type}", locals())
+    assert (expected, []) == sql("SELECT x FROM y FOR UPDATE {lock_type}", locals())
 
 
-@pytest.mark.xfail
 def test_absent_lock() -> None:
     a = Absent
-    assert ("SELECT x FROM y", []) == sql("SELECT x FROM y FOR UPDATE OF {a}", locals())
+    assert ("select x from y", []) == sql("SELECT x FROM y FOR UPDATE OF {a}", locals())

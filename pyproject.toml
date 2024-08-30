@@ -25,9 +25,7 @@ include = ["src/sql_string/py.typed"]
 license = {text = "MIT"}
 readme = "README.rst"
 repository = "https://github.com/pgjones/sql-string/"
-dependencies = [
-    "sqlglot",
-]
+dependencies = []
 requires-python = ">=3.10"
 
 [project.optional-dependencies]

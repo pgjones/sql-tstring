@@ -4,11 +4,7 @@ from dataclasses import dataclass, field, replace
 from types import TracebackType
 from typing import Any, Container, Literal
 
-from sqlglot import exp, parse, parse_one, to_identifier
-from sqlglot._typing import E
-
-BRACES_RE = re.compile(r"(\{.*?\}\}?)")
-PLACEHOLDER_RE = re.compile(r"\?")
+SPLIT_RE = re.compile(r"([ ,()])")
 
 
 @dataclass
@@ -64,96 +60,118 @@ class Absent:
     pass
 
 
-def sql(query: str, values: dict[str, Any]) -> tuple[str, list[Any]]:
-    result_query = ""
-    result_values = []
+def sql(query: str, values: dict[str, Any]) -> tuple[str, list]:
     ctx = get_context()
-
-    for expressions in parse(_braces_to_placeholders(query)):
-        for node in expressions.dfs():
-            match node:
-                case exp.Placeholder():
-                    identifier = node.this
-                    value = values[identifier]
-                    context = _context(node)
-                    if value is Absent or isinstance(value, Absent):
-                        match context:
-                            case exp.Values():
-                                new_node = parse_one("DEFAULT")
-                                node.parent.set(node.arg_key, new_node, node.index)
-                            case exp.Update() | exp.Where():
-                                _remove_node(node)
-                            case exp.Ordered():
-                                _remove_node(node)
-                    else:
-                        match context:
-                            case exp.Ordered():
-                                if value not in ctx.columns:
-                                    raise ValueError(f"{value} is not a valid column")
-                                new_node = to_identifier(value)
-                            case _:
-                                new_node = parse_one("?")
-                                result_values.append(value)
-                        node.parent.set(node.arg_key, new_node, node.index)
-        result_query += str(expressions)
-
-    if ctx.dialect == "asyncpg":
-        result_query = _sql_to_asyncpg(result_query)
-
-    return result_query, result_values
-
-
-def _braces_to_placeholders(raw: str) -> str:
-    result = ""
-    last_position = 0
-    for match_ in BRACES_RE.finditer(raw):
-        result += raw[last_position : match_.start()]
-        content = match_.group()
-        if content.startswith("{{") and content.endswith("}}"):
-            result += content[1:-1]
-        elif content[1:-1].isidentifier():
-            result += f":{content[1:-1]}"
+    root_node = _Node(text="", parent=None)
+    current_node = root_node
+    result_values = []
+    for part in _tokenise(query):
+        if part.lower() == "insert":
+            node = _Node(text="insert into", parent=root_node)
+            current_node = node
+            root_node.children.append(node)
+        elif part.lower() == "order":
+            node = _Node(text="order by", parent=root_node)
+            current_node = node
+            root_node.children.append(node)
+        elif part.lower() == "update":
+            if current_node.text == "for":
+                current_node.text = "for update"
+            else:
+                node = _Node(text="update", parent=root_node)
+                current_node = node
+                root_node.children.append(node)
+        elif part.lower() in {"for", "from", "select", "set", "values", "where"}:
+            node = _Node(text=part.lower(), parent=root_node)
+            current_node = node
+            root_node.children.append(node)
+        elif part.lower() in {"by", "into"}:
+            pass
         else:
-            raise SyntaxError(f"Value '{content[1:-1]}' must be an identifier")
-        last_position = match_.end()
-    result += raw[last_position:]
-    return result
+            if part[0] == "{" and part[-1] == "}":
+                if part[1] == "{" and part[-2] == "}":
+                    node = _Node(text=part[1:-1], parent=current_node)
+                else:
+                    value = values[part[1:-1]]
+                    if value is Absent or isinstance(value, Absent):
+                        if current_node.text == "values":
+                            node = _Node(text="default", parent=current_node)
+                        else:
+                            node = None
+                    elif current_node.text in {"order by", "select"}:
+                        _check_valid(value.lower(), ctx.columns)
+                        node = _Node(text=value.lower(), parent=current_node)
+                    elif current_node.text in {"from", "update"}:
+                        _check_valid(value.lower(), ctx.tables)
+                        node = _Node(text=value.lower(), parent=current_node)
+                    elif current_node.text == "for update":
+                        _check_valid(value.lower(), {"", "nowait", "skip locked"})
+                        node = _Node(text=value.lower(), parent=current_node)
+                    elif current_node.text in {"set", "values", "where"}:
+                        result_values.append(value)
+                        if ctx.dialect == "asyncpg":
+                            placeholder = f"${len(result_values)}"
+                        else:
+                            placeholder = "?"
+                        node = _Node(text=placeholder, parent=current_node)
+            else:
+                node = _Node(text=part.lower(), parent=current_node)
+
+            current_node.children.append(node)
+
+    _clean_tree(root_node)
+    return str(root_node), result_values
 
 
-def _context(node: E) -> exp.Expression | None:
-    match node:
-        case exp.Ordered() | exp.Update() | exp.Values() | exp.Where():
-            return node
-        case None:
-            return None
-        case _:
-            return _context(node.parent)
+@dataclass
+class _Node:
+    text: str
+    parent: "_Node | None"
+    children: list["_Node | None"] = field(default_factory=list)
+
+    def __str__(self) -> str:
+        child_str = " ".join(str(node) for node in self.children)
+        return f"{self.text} {child_str}".strip()
 
 
-def _remove_node(node: E) -> None:
-    match node:
-        case exp.Connector():
-            if node.left is not None and node.right is not None:
-                return
-            elif node.left is not None:
-                node.parent.set(node.arg_key, node.left, node.index)
-            else:  # node.right is not None
-                node.parent.set(node.arg_key, node.right, node.index)
-        case exp.Ordered() | exp.Update() | exp.Where():
-            if node.is_leaf():
-                node.parent.set(node.arg_key, None, node.index)
-            return
-        case _:
-            node.parent.set(node.arg_key, None, node.index)
-            _remove_node(node.parent)
+def _tokenise(raw: str) -> list[str]:
+    return [part.strip() for part in SPLIT_RE.split(raw) if part.strip() != ""]
 
 
-def _sql_to_asyncpg(raw: str) -> str:
-    last_position = 0
-    result = ""
-    for index, match_ in enumerate(PLACEHOLDER_RE.finditer(raw), start=1):
-        result += raw[last_position : match_.start()]
-        result += f"${index}"
-        last_position = match_.end()
-    result += raw[last_position:]
-    return result
+def _check_valid(value: str, valid_options: Container[str]) -> None:
+    if value not in valid_options:
+        raise ValueError(f"{value} is not valid, must be one of {valid_options}")
+
+
+def _clean_tree(root: _Node) -> None:
+    new_children = []
+    for node in root.children:
+        if node.text in {"order by", "set"}:
+            _clean_node(node, groupings={","})
+        elif node.text == "where":
+            _clean_node(node, groupings={"and", "or"})
+        else:
+            _clean_node(node, groupings=set())
+
+        if len(node.children) > 0 or node.text == "update":
+            new_children.append(node)
+    root.children = new_children
+
+
+def _clean_node(node: _Node, groupings: set[str]) -> None:
+    new_children = []
+    group = []
+    for child in node.children:
+        group.append(child)
+        if child is not None and child.text in groupings:
+            if None not in group:
+                new_children.extend(group)
+            group = []
+    if None not in group:
+        new_children.extend(group)
+    if len(new_children) > 0:
+        if new_children[-1].text in groupings:
+            del new_children[-1]
+        if new_children[0].text in groupings:
+            del new_children[0]
+    node.children = new_children
