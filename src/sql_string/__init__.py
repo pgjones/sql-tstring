@@ -88,34 +88,35 @@ def sql(query: str, values: dict[str, Any]) -> tuple[str, list]:
         elif part.lower() in {"by", "into"}:
             pass
         else:
-            if part[0] == "{" and part[-1] == "}":
-                if part[1] == "{" and part[-2] == "}":
-                    node = _Node(text=part[1:-1], parent=current_node)
-                else:
-                    value = values[part[1:-1]]
-                    if value is Absent or isinstance(value, Absent):
-                        if current_node.text == "values":
-                            node = _Node(text="default", parent=current_node)
-                        else:
-                            node = None
-                    elif current_node.text in {"order by", "select"}:
-                        _check_valid(value.lower(), ctx.columns)
-                        node = _Node(text=value.lower(), parent=current_node)
-                    elif current_node.text in {"from", "update"}:
-                        _check_valid(value.lower(), ctx.tables)
-                        node = _Node(text=value.lower(), parent=current_node)
-                    elif current_node.text == "for update":
-                        _check_valid(value.lower(), {"", "nowait", "skip locked"})
-                        node = _Node(text=value.lower(), parent=current_node)
-                    elif current_node.text in {"set", "values", "where"}:
-                        result_values.append(value)
-                        if ctx.dialect == "asyncpg":
-                            placeholder = f"${len(result_values)}"
-                        else:
-                            placeholder = "?"
-                        node = _Node(text=placeholder, parent=current_node)
+            if part.startswith("{{") and part.endswith("}}"):
+                node = _Node(text=part[1:-1], parent=current_node)
+            elif part[0] == "{" and part[-1] == "}":
+                value = values[part[1:-1]]
+                if value is Absent or isinstance(value, Absent):
+                    if current_node.text == "values":
+                        node = _Node(text="default", parent=current_node)
+                    else:
+                        node = None
+                elif current_node.text in {"order by", "select"}:
+                    _check_valid(value.lower(), ctx.columns)
+                    node = _Node(text=value.lower(), parent=current_node)
+                elif current_node.text in {"from", "update"}:
+                    _check_valid(value.lower(), ctx.tables)
+                    node = _Node(text=value.lower(), parent=current_node)
+                elif current_node.text == "for update":
+                    _check_valid(value.lower(), {"", "nowait", "skip locked"})
+                    node = _Node(text=value.lower(), parent=current_node)
+                elif current_node.text in {"set", "values", "where"}:
+                    result_values.append(value)
+                    if ctx.dialect == "asyncpg":
+                        placeholder = f"${len(result_values)}"
+                    else:
+                        placeholder = "?"
+                    node = _Node(text=placeholder, parent=current_node)
             else:
-                node = _Node(text=part.lower(), parent=current_node)
+                node = _Node(
+                    text=part.lower().replace("{{", "{").replace("}}", "}"), parent=current_node
+                )
 
             current_node.children.append(node)
 

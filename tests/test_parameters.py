@@ -60,6 +60,11 @@ def test_update(query: str, expected_query: str, expected_values: list[Any]) -> 
             "insert into x ( b ) values ( ? ) on conflict do update set b = ?",
             [2, 2],
         ),
+        (
+            "INSERT INTO x (a) VALUES ('{{}}')",
+            "insert into x ( a ) values ( '{}' )",
+            [],
+        ),
     ],
 )
 def test_insert(query: str, expected_query: str, expected_values: list[Any]) -> None:
