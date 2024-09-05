@@ -70,8 +70,8 @@ def sql(query: str, values: dict[str, Any]) -> tuple[str, list]:
             node = _Node(text="insert into", parent=root_node)
             current_node = node
             root_node.children.append(node)
-        elif part.lower() == "order":
-            node = _Node(text="order by", parent=root_node)
+        elif part.lower() in {"group", "order"}:
+            node = _Node(text=f"{part.lower()} by", parent=root_node)
             current_node = node
             root_node.children.append(node)
         elif part.lower() == "update":
