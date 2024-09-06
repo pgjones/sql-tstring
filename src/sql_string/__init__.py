@@ -66,12 +66,8 @@ def sql(query: str, values: dict[str, Any]) -> tuple[str, list]:
     current_node = root_node
     result_values = []
     for part in _tokenise(query):
-        if part.lower() == "insert":
-            node = _Node(text="insert into", parent=root_node)
-            current_node = node
-            root_node.children.append(node)
-        elif part.lower() in {"group", "order"}:
-            node = _Node(text=f"{part.lower()} by", parent=root_node)
+        if part.lower() in {"insert", "group", "order"}:
+            node = _Node(text=part.lower(), parent=root_node)
             current_node = node
             root_node.children.append(node)
         elif part.lower() == "update":
@@ -81,12 +77,15 @@ def sql(query: str, values: dict[str, Any]) -> tuple[str, list]:
                 node = _Node(text="update", parent=root_node)
                 current_node = node
                 root_node.children.append(node)
-        elif part.lower() in {"for", "from", "select", "set", "values", "where"}:
+        elif part.lower() in {"on", "for", "from", "select", "set", "values", "where"}:
             node = _Node(text=part.lower(), parent=root_node)
             current_node = node
             root_node.children.append(node)
-        elif part.lower() in {"by", "into"}:
-            pass
+        elif part.lower() in {"by", "conflict", "do", "into"}:
+            current_node.parent.children[-1].text += f" {part.lower()}"
+        elif part.lower() in {"and", "any", "or"}:
+            node = _Node(text=part.lower(), parent=current_node)
+            current_node.children.append(node)
         else:
             if part.startswith("{{") and part.endswith("}}"):
                 node = _Node(text=part[1:-1], parent=current_node)
@@ -114,9 +113,7 @@ def sql(query: str, values: dict[str, Any]) -> tuple[str, list]:
                         placeholder = "?"
                     node = _Node(text=placeholder, parent=current_node)
             else:
-                node = _Node(
-                    text=part.lower().replace("{{", "{").replace("}}", "}"), parent=current_node
-                )
+                node = _Node(text=part.replace("{{", "{").replace("}}", "}"), parent=current_node)
 
             current_node.children.append(node)
 
@@ -154,7 +151,7 @@ def _clean_tree(root: _Node) -> None:
         else:
             _clean_node(node, groupings=set())
 
-        if len(node.children) > 0 or node.text == "update":
+        if len(node.children) > 0 or node.text in {"on conflict do", "update"}:
             new_children.append(node)
     root.children = new_children
 
