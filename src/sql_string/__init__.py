@@ -77,7 +77,7 @@ def sql(query: str, values: dict[str, Any]) -> tuple[str, list]:
                 node = _Node(text="update", parent=root_node)
                 current_node = node
                 root_node.children.append(node)
-        elif part.lower() in {"on", "for", "from", "select", "set", "values", "where"}:
+        elif part.lower() in {"on", "for", "from", "select", "set", "values", "with", "where"}:
             node = _Node(text=part.lower(), parent=root_node)
             current_node = node
             root_node.children.append(node)
