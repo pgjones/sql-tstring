@@ -71,17 +71,27 @@ def sql(query: str, values: dict[str, Any]) -> tuple[str, list]:
             current_node = node
             root_node.children.append(node)
         elif part.lower() == "update":
-            if current_node.text == "for":
-                current_node.text = "for update"
+            if current_node.text in {"do", "for"}:
+                current_node.text += " update"
             else:
                 node = _Node(text="update", parent=root_node)
                 current_node = node
                 root_node.children.append(node)
-        elif part.lower() in {"on", "for", "from", "select", "set", "values", "with", "where"}:
+        elif part.lower() in {
+            "do",
+            "on",
+            "for",
+            "from",
+            "select",
+            "set",
+            "values",
+            "with",
+            "where",
+        }:
             node = _Node(text=part.lower(), parent=root_node)
             current_node = node
             root_node.children.append(node)
-        elif part.lower() in {"by", "conflict", "do", "into"}:
+        elif part.lower() in {"by", "conflict", "into"}:
             current_node.parent.children[-1].text += f" {part.lower()}"
         elif part.lower() in {"and", "any", "or"}:
             node = _Node(text=part.lower(), parent=current_node)
@@ -102,7 +112,7 @@ def sql(query: str, values: dict[str, Any]) -> tuple[str, list]:
                 elif current_node.text in {"from", "update"}:
                     _check_valid(value.lower(), ctx.tables)
                     node = _Node(text=value.lower(), parent=current_node)
-                elif current_node.text == "for update":
+                elif current_node.text in {"do update", "for update"}:
                     _check_valid(value.lower(), {"", "nowait", "skip locked"})
                     node = _Node(text=value.lower(), parent=current_node)
                 elif current_node.text in {"set", "values", "where"}:
@@ -151,7 +161,7 @@ def _clean_tree(root: _Node) -> None:
         else:
             _clean_node(node, groupings=set())
 
-        if len(node.children) > 0 or node.text in {"on conflict do", "update"}:
+        if len(node.children) > 0 or node.text in {"on conflict", "do update"}:
             new_children.append(node)
     root.children = new_children
 

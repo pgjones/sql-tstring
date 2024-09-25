@@ -18,3 +18,19 @@ def test_cte() -> None:
         query
         == """with cte AS ( select DISTINCT x from y ) select DISTINCT x from z where x NOT IN ( select a from b )"""  # noqa: E501
     )
+
+
+def test() -> None:
+    a = "A"
+    b = "B"
+    query, _ = sql(
+        """INSERT INTO x (a, b)
+                VALUES ({a}, {b})
+           ON CONFLICT (a) DO UPDATE SET b = {b}
+             RETURNING a, b""",
+        locals(),
+    )
+    assert (
+        query
+        == "insert into x ( a , b ) values ( ? , ? ) on conflict ( a ) do update set b = ? RETURNING a , b"  # noqa: E501
+    )
