@@ -23,6 +23,11 @@ from sql_string import Absent, sql
             "select x from y where b = ?",
             [2],
         ),
+        (
+            "SELECT x FROM y WHERE DATE(b) <= {b} AND DATE(a) >= {a}",
+            "select x from y where DATE ( b ) <= ?",
+            [2],
+        ),
     ],
 )
 def test_select(query: str, expected_query: str, expected_values: list[Any]) -> None:
