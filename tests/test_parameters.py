@@ -10,12 +10,12 @@ from sql_string import Absent, sql
     [
         (
             "SELECT x FROM y WHERE a = {a} AND (b = {b} OR c = 1)",
-            "select x from y where ( b = ? or c = 1 )",
+            "select x from y where (b = ? OR c = 1)",
             [2],
         ),
         (
             "SELECT x FROM y WHERE a = ANY({a}) AND b = ANY({b})",
-            "select x from y where b = any ( ? )",
+            "select x from y where b = ANY (?)",
             [2],
         ),
         (
@@ -25,7 +25,7 @@ from sql_string import Absent, sql
         ),
         (
             "SELECT x FROM y WHERE DATE(b) <= {b} AND DATE(a) >= {a}",
-            "select x from y where DATE ( b ) <= ?",
+            "select x from y where DATE (b) <= ?",
             [2],
         ),
     ],
@@ -57,17 +57,17 @@ def test_update(query: str, expected_query: str, expected_values: list[Any]) -> 
     [
         (
             "INSERT INTO x (a, b) VALUES ({a}, {b})",
-            "insert into x ( a , b ) values ( default , ? )",
+            "insert into x (a , b) values (default , ?)",
             [2],
         ),
         (
             "INSERT INTO x (b) VALUES ({b}) ON CONFLICT DO UPDATE SET b = {b}",
-            "insert into x ( b ) values ( ? ) on conflict do update set b = ?",
+            "insert into x (b) values (?) on conflict do update set b = ?",
             [2, 2],
         ),
         (
             "INSERT INTO x (a) VALUES ('{{}}')",
-            "insert into x ( a ) values ( '{}' )",
+            "insert into x (a) values ('{}')",
             [],
         ),
     ],

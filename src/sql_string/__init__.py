@@ -1,17 +1,28 @@
-import re
+from __future__ import annotations
+
 from contextvars import ContextVar
+from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from types import TracebackType
-from typing import Any, Container, Literal
+from typing import Any, Literal
 
-SPLIT_RE = re.compile(r"([ ,()])")
+from sql_string.parser import (
+    Clause,
+    ClausePlaceholderType,
+    Expression,
+    Group,
+    parse_raw,
+    Part,
+    Placeholder,
+    Statement,
+)
 
 
 @dataclass
 class Context:
-    columns: Container[str] = field(default_factory=list)
+    columns: set[str] = field(default_factory=set)
     dialect: Literal["asyncpg", "sql"] = "sql"
-    tables: Container[str] = field(default_factory=list)
+    tables: set[str] = field(default_factory=set)
 
 
 _context_var: ContextVar[Context] = ContextVar("sql_string_context")
@@ -28,6 +39,30 @@ def get_context() -> Context:
 
 def set_context(context: Context) -> None:
     _context_var.set(context)
+
+
+def sql_context(**kwargs: Any) -> _ContextManager:
+    ctx = get_context()
+    ctx_manager = _ContextManager(ctx)
+    for key, value in kwargs.items():
+        setattr(ctx_manager._context, key, value)
+    return ctx_manager
+
+
+class Absent:
+    pass
+
+
+def sql(query: str, values: dict[str, Any]) -> tuple[str, list]:
+    parsed_queries = parse_raw(query)
+    result_str = ""
+    result_values = []
+    for raw_parsed_query in parsed_queries:
+        parsed_query = deepcopy(raw_parsed_query)
+        result_values.extend(_replace_placeholders(parsed_query, 0, values))
+        result_str += _print_node(parsed_query, [None] * len(result_values))
+
+    return result_str, result_values
 
 
 class _ContextManager:
@@ -48,138 +83,107 @@ class _ContextManager:
         set_context(self._original_context)
 
 
-def sql_context(**kwargs: Any) -> _ContextManager:
-    ctx = get_context()
-    ctx_manager = _ContextManager(ctx)
-    for key, value in kwargs.items():
-        setattr(ctx_manager._context, key, value)
-    return ctx_manager
-
-
-class Absent:
-    pass
-
-
-def sql(query: str, values: dict[str, Any]) -> tuple[str, list]:
-    ctx = get_context()
-    root_node = _Node(text="", parent=None)
-    current_node = root_node
-    result_values = []
-    for part in _tokenise(query):
-        if part.lower() in {"insert", "group", "order"}:
-            node = _Node(text=part.lower(), parent=root_node)
-            current_node = node
-            root_node.children.append(node)
-        elif part.lower() == "update":
-            if current_node.text in {"do", "for"}:
-                current_node.text += " update"
-            else:
-                node = _Node(text="update", parent=root_node)
-                current_node = node
-                root_node.children.append(node)
-        elif part.lower() in {
-            "do",
-            "on",
-            "for",
-            "from",
-            "select",
-            "set",
-            "values",
-            "with",
-            "where",
-        }:
-            node = _Node(text=part.lower(), parent=root_node)
-            current_node = node
-            root_node.children.append(node)
-        elif part.lower() in {"by", "conflict", "into"}:
-            current_node.parent.children[-1].text += f" {part.lower()}"
-        elif part.lower() in {"and", "any", "or"}:
-            node = _Node(text=part.lower(), parent=current_node)
-            current_node.children.append(node)
-        else:
-            if part.startswith("{{") and part.endswith("}}"):
-                node = _Node(text=part[1:-1], parent=current_node)
-            elif part[0] == "{" and part[-1] == "}":
-                value = values[part[1:-1]]
-                if value is Absent or isinstance(value, Absent):
-                    if current_node.text == "values":
-                        node = _Node(text="default", parent=current_node)
-                    else:
-                        node = None
-                elif current_node.text in {"order by", "select"}:
-                    _check_valid(value.lower(), ctx.columns)
-                    node = _Node(text=value.lower(), parent=current_node)
-                elif current_node.text in {"from", "update"}:
-                    _check_valid(value.lower(), ctx.tables)
-                    node = _Node(text=value.lower(), parent=current_node)
-                elif current_node.text in {"do update", "for update"}:
-                    _check_valid(value.lower(), {"", "nowait", "skip locked"})
-                    node = _Node(text=value.lower(), parent=current_node)
-                elif current_node.text in {"set", "values", "where"}:
-                    result_values.append(value)
-                    if ctx.dialect == "asyncpg":
-                        placeholder = f"${len(result_values)}"
-                    else:
-                        placeholder = "?"
-                    node = _Node(text=placeholder, parent=current_node)
-            else:
-                node = _Node(text=part.replace("{{", "{").replace("}}", "}"), parent=current_node)
-
-            current_node.children.append(node)
-
-    _clean_tree(root_node)
-    return str(root_node), result_values
-
-
-@dataclass
-class _Node:
-    text: str
-    parent: "_Node | None"
-    children: list["_Node | None"] = field(default_factory=list)
-
-    def __str__(self) -> str:
-        child_str = " ".join(str(node) for node in self.children)
-        return f"{self.text} {child_str}".strip()
-
-
-def _tokenise(raw: str) -> list[str]:
-    return [part.strip() for part in SPLIT_RE.split(raw) if part.strip() != ""]
-
-
-def _check_valid(value: str, valid_options: Container[str]) -> None:
+def _check_valid(value: str, valid_options: set[str]) -> None:
     if value not in valid_options:
         raise ValueError(f"{value} is not valid, must be one of {valid_options}")
 
 
-def _clean_tree(root: _Node) -> None:
-    new_children = []
-    for node in root.children:
-        if node.text in {"order by", "set"}:
-            _clean_node(node, groupings={","})
-        elif node.text == "where":
-            _clean_node(node, groupings={"and", "or"})
-        else:
-            _clean_node(node, groupings=set())
+def _print_node(
+    node: Clause | Expression | Group | Part | Placeholder | Statement,
+    placeholders: list | None = None,
+    dialect: str = "sql",
+) -> str:
+    if placeholders is None:
+        placeholders = []
 
-        if len(node.children) > 0 or node.text in {"on conflict", "do update"}:
-            new_children.append(node)
-    root.children = new_children
+    match node:
+        case Statement():
+            result = " ".join(_print_node(clause, placeholders, dialect) for clause in node.clauses)
+        case Clause():
+            if not node.removed:
+                expressions = " ".join(
+                    _print_node(expression, placeholders, dialect)
+                    for expression in node.expressions
+                ).strip()
+                for suffix in node.separators:
+                    expressions = expressions.removesuffix(suffix).removesuffix(suffix.upper())
+                result = f"{node.text} {expressions}"
+            else:
+                result = ""
+        case Expression():
+            if not node.removed:
+                result = " ".join(_print_node(part, placeholders, dialect) for part in node.parts)
+            else:
+                result = ""
+        case Group():
+            result = (
+                f"({" ".join(_print_node(part, placeholders, dialect) for part in node.parts)})"
+            )
+        case Part():
+            result = node.text
+        case Placeholder():
+            placeholders.append(None)
+            result = f"${len(placeholders)}" if dialect == "asyncpg" else "?"
+
+    return result.strip()
 
 
-def _clean_node(node: _Node, groupings: set[str]) -> None:
-    new_children = []
-    group = []
-    for child in node.children:
-        group.append(child)
-        if child is not None and child.text in groupings:
-            if None not in group:
-                new_children.extend(group)
-            group = []
-    if None not in group:
-        new_children.extend(group)
-    if len(new_children) > 0:
-        if new_children[-1].text in groupings:
-            del new_children[-1]
-        if new_children[0].text in groupings:
-            del new_children[0]
-    node.children = new_children
+def _replace_placeholders(
+    node: Clause | Expression | Group | Part | Placeholder | Statement,
+    index: int,
+    values: dict[str, Any],
+) -> list[Any]:
+    result = []
+    ctx = get_context()
+    match node:
+        case Statement():
+            for clause_ in node.clauses:
+                result.extend(_replace_placeholders(clause_, 0, values))
+        case Clause():
+            for index, expression_ in enumerate(node.expressions):
+                result.extend(_replace_placeholders(expression_, index, values))
+        case Expression() | Group():
+            for index, part in enumerate(node.parts):
+                result.extend(_replace_placeholders(part, index, values))
+        case Placeholder():
+            clause = node.parent
+            while not isinstance(clause, Clause):
+                clause = clause.parent  # type: ignore
+
+            value = values[node.name]
+            new_node: Part | Placeholder
+            if value is Absent or isinstance(value, Absent):
+                if clause.placeholder_type == ClausePlaceholderType.VARIABLE_DEFAULT:
+                    new_node = Part(text="default", parent=node.parent)
+                    node.parent.parts[index] = new_node
+                elif clause.placeholder_type == ClausePlaceholderType.LOCK:
+                    clause.removed = True
+                else:
+                    expression = node.parent
+                    while not isinstance(expression, Expression):
+                        expression = expression.parent
+
+                    expression.removed = True
+            else:
+                if clause.text == "order by":
+                    _check_valid(value, ctx.columns | {"ASC", "DESC"})
+                    new_node = Part(text=value, parent=node.parent)
+                elif clause.placeholder_type == ClausePlaceholderType.COLUMN:
+                    _check_valid(value, ctx.columns)
+                    new_node = Part(text=value, parent=node.parent)
+                elif clause.placeholder_type == ClausePlaceholderType.TABLE:
+                    _check_valid(value, ctx.tables)
+                    new_node = Part(text=value, parent=node.parent)
+                elif clause.placeholder_type == ClausePlaceholderType.LOCK:
+                    _check_valid(value, {"", "NOWAIT", "SKIP LOCKED"})
+                    new_node = Part(text=value, parent=node.parent)
+                else:
+                    new_node = node
+                    result.append(value)
+
+                if isinstance(node.parent, (Expression, Group)):
+                    node.parent.parts[index] = new_node
+                else:
+                    raise RuntimeError("Invalid placeholder")
+
+    return result

@@ -16,11 +16,11 @@ def test_cte() -> None:
     )
     assert (
         query
-        == """with cte AS ( select DISTINCT x from y ) select DISTINCT x from z where x NOT IN ( select a from b )"""  # noqa: E501
+        == """with cte AS (select DISTINCT x from y) select DISTINCT x from z where x NOT IN (select a from b)"""  # noqa: E501
     )
 
 
-def test() -> None:
+def test_with_conflict() -> None:
     a = "A"
     b = "B"
     query, _ = sql(
@@ -32,5 +32,5 @@ def test() -> None:
     )
     assert (
         query
-        == "insert into x ( a , b ) values ( ? , ? ) on conflict ( a ) do update set b = ? RETURNING a , b"  # noqa: E501
+        == "insert into x (a , b) values (? , ?) on conflict (a) do update set b = ? returning a , b"  # noqa: E501
     )
