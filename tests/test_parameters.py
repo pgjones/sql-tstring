@@ -28,11 +28,17 @@ from sql_string import Absent, sql
             "select x from y where DATE (b) <= ?",
             [2],
         ),
+        (
+            "SELECT x FROM y WHERE c = {c} OR c != {c}",
+            "select x from y where c is null OR c is not null",
+            [],
+        ),
     ],
 )
 def test_select(query: str, expected_query: str, expected_values: list[Any]) -> None:
     a = Absent()
     b = 2
+    c = None
     assert (expected_query, expected_values) == sql(query, locals())
 
 

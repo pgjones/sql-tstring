@@ -178,8 +178,17 @@ def _replace_placeholders(
                     _check_valid(value, {"", "NOWAIT", "SKIP LOCKED"})
                     new_node = Part(text=value, parent=node.parent)
                 else:
-                    new_node = node
-                    result.append(value)
+                    if value is None:
+                        for part in node.parent.parts:
+                            if isinstance(part, Part):
+                                if part.text == "=":
+                                    part.text = "is"
+                                elif part.text in {"!=", "<>"}:
+                                    part.text = "is not"
+                        new_node = Part(text="null", parent=node.parent)
+                    else:
+                        new_node = node
+                        result.append(value)
 
                 if isinstance(node.parent, (Expression, Group)):
                     node.parent.parts[index] = new_node
