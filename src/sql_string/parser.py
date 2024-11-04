@@ -29,6 +29,11 @@ class ClauseProperties:
 type ClauseDictionary = dict[str, "ClauseDictionary" | ClauseProperties]
 
 CLAUSES: ClauseDictionary = {
+    "delete": {
+        "from": {
+            "": ClauseProperties(placeholder_type=ClausePlaceholderType.TABLE, separators=set()),
+        },
+    },
     "for": {
         "update": {
             "": ClauseProperties(placeholder_type=ClausePlaceholderType.LOCK, separators=set())

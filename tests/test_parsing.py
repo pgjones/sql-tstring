@@ -6,6 +6,11 @@ def test_literals() -> None:
     assert query == "select x from y where x = 'NONE'"
 
 
+def test_delete_from() -> None:
+    query, _ = sql("DELETE FROM y WHERE x = 'NONE'", locals())
+    assert query == "delete from y where x = 'NONE'"
+
+
 def test_cte() -> None:
     query, _ = sql(
         """WITH cte AS (SELECT DISTINCT x FROM y)
