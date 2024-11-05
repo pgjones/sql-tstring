@@ -56,11 +56,13 @@ class Absent:
 def sql(query: str, values: dict[str, Any]) -> tuple[str, list]:
     parsed_queries = parse_raw(query)
     result_str = ""
-    result_values = []
+    result_values: list[Any] = []
+    ctx = get_context()
     for raw_parsed_query in parsed_queries:
         parsed_query = deepcopy(raw_parsed_query)
-        result_values.extend(_replace_placeholders(parsed_query, 0, values))
-        result_str += _print_node(parsed_query, [None] * len(result_values))
+        new_values = _replace_placeholders(parsed_query, 0, values)
+        result_str += _print_node(parsed_query, [None] * len(result_values), ctx.dialect)
+        result_values.extend(new_values)
 
     return result_str, result_values
 
