@@ -105,9 +105,12 @@ def _print_node(
                     _print_node(expression, placeholders, dialect)
                     for expression in node.expressions
                 ).strip()
-                for suffix in node.separators:
+                for suffix in node.properties.separators:
                     expressions = expressions.removesuffix(suffix).removesuffix(suffix.upper())
-                result = f"{node.text} {expressions}"
+                if expressions == "" and not node.properties.allow_empty:
+                    result = ""
+                else:
+                    result = f"{node.text} {expressions}"
             else:
                 result = ""
         case Expression():
@@ -153,10 +156,10 @@ def _replace_placeholders(
             value = values[node.name]
             new_node: Part | Placeholder
             if value is Absent or isinstance(value, Absent):
-                if clause.placeholder_type == ClausePlaceholderType.VARIABLE_DEFAULT:
+                if clause.properties.placeholder_type == ClausePlaceholderType.VARIABLE_DEFAULT:
                     new_node = Part(text="default", parent=node.parent)
                     node.parent.parts[index] = new_node
-                elif clause.placeholder_type == ClausePlaceholderType.LOCK:
+                elif clause.properties.placeholder_type == ClausePlaceholderType.LOCK:
                     clause.removed = True
                 else:
                     expression = node.parent
@@ -168,13 +171,13 @@ def _replace_placeholders(
                 if clause.text == "order by":
                     _check_valid(value, ctx.columns | {"ASC", "DESC"})
                     new_node = Part(text=value, parent=node.parent)
-                elif clause.placeholder_type == ClausePlaceholderType.COLUMN:
+                elif clause.properties.placeholder_type == ClausePlaceholderType.COLUMN:
                     _check_valid(value, ctx.columns)
                     new_node = Part(text=value, parent=node.parent)
-                elif clause.placeholder_type == ClausePlaceholderType.TABLE:
+                elif clause.properties.placeholder_type == ClausePlaceholderType.TABLE:
                     _check_valid(value, ctx.tables)
                     new_node = Part(text=value, parent=node.parent)
-                elif clause.placeholder_type == ClausePlaceholderType.LOCK:
+                elif clause.properties.placeholder_type == ClausePlaceholderType.LOCK:
                     _check_valid(value, {"", "NOWAIT", "SKIP LOCKED"})
                     new_node = Part(text=value, parent=node.parent)
                 else:

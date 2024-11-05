@@ -24,6 +24,11 @@ from sql_string import Absent, sql
             [2],
         ),
         (
+            "SELECT x FROM y WHERE a = {a}",
+            "select x from y",
+            [],
+        ),
+        (
             "SELECT x FROM y WHERE DATE(b) <= {b} AND DATE(a) >= {a}",
             "select x from y where DATE (b) <= ?",
             [2],
@@ -31,6 +36,11 @@ from sql_string import Absent, sql
         (
             "SELECT x FROM y WHERE c = {c} OR c != {c}",
             "select x from y where c is null OR c is not null",
+            [],
+        ),
+        (
+            "SELECT x FROM y JOIN z ON a = {a}",
+            "select x from y join z",
             [],
         ),
     ],
