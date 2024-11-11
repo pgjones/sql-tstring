@@ -228,8 +228,10 @@ def parse_raw(raw: str) -> list[Statement]:
             elif current_token == ")":
                 while not isinstance(current_node, Group):
                     current_node = current_node.parent
-                while not isinstance(current_node, Clause):
-                    current_node = current_node.parent  # type: ignore[assignment]
+
+                current_node = current_node.parent  # type: ignore[assignment]
+                while not isinstance(current_node, (Clause, Group)):
+                    current_node = current_node.parent
             elif (match_ := PLACEHOLDER_RE.search(current_token)) is not None:
                 if isinstance(current_node, Statement):
                     raise ValueError(f"Syntax error in '{raw}'")

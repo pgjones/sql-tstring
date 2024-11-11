@@ -11,6 +11,11 @@ def test_delete_from() -> None:
     assert query == "delete from y where x = 'NONE'"
 
 
+def test_nested() -> None:
+    query, _ = sql("SELECT COALESCE(x, now())", locals())
+    assert query == "select COALESCE (x , now ())"
+
+
 def test_cte() -> None:
     query, _ = sql(
         """WITH cte AS (SELECT DISTINCT x FROM y)
