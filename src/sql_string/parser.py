@@ -38,6 +38,15 @@ CLAUSES: ClauseDictionary = {
             ),
         },
     },
+    "default": {
+        "values": {
+            "": ClauseProperties(
+                allow_empty=True,
+                placeholder_type=ClausePlaceholderType.DISALLOWED,
+                separators=set(),
+            ),
+        },
+    },
     "for": {
         "update": {
             "": ClauseProperties(

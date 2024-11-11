@@ -39,3 +39,8 @@ def test_with_conflict() -> None:
         query
         == "insert into x (a , b) values (? , ?) on conflict (a) do update set b = ? returning a , b"  # noqa: E501
     )
+
+
+def test_default_insert() -> None:
+    query, _ = sql("INSERT INTO tbl DEFAULT VALUES RETURNING id", locals())
+    assert query == "insert into tbl default values returning id"
