@@ -183,7 +183,11 @@ def _replace_placeholders(
                     _check_valid(value, {"", "NOWAIT", "SKIP LOCKED"})
                     new_node = Part(text=value, parent=node.parent)
                 else:
-                    if value is None:
+                    if (
+                        value is None
+                        and clause.properties.placeholder_type
+                        == ClausePlaceholderType.VARIABLE_CONDITION
+                    ):
                         for part in node.parent.parts:
                             if isinstance(part, Part):
                                 if part.text == "=":

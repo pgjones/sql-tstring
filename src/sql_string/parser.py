@@ -17,6 +17,7 @@ class ClausePlaceholderType(Enum):
     LOCK = auto()
     TABLE = auto()
     VARIABLE = auto()
+    VARIABLE_CONDITION = auto()
     VARIABLE_DEFAULT = auto()
 
 
@@ -101,7 +102,7 @@ CLAUSES: ClauseDictionary = {
     "having": {
         "": ClauseProperties(
             allow_empty=False,
-            placeholder_type=ClausePlaceholderType.VARIABLE,
+            placeholder_type=ClausePlaceholderType.VARIABLE_CONDITION,
             separators={"and", "or"},
         )
     },
@@ -145,7 +146,7 @@ CLAUSES: ClauseDictionary = {
     "where": {
         "": ClauseProperties(
             allow_empty=False,
-            placeholder_type=ClausePlaceholderType.VARIABLE,
+            placeholder_type=ClausePlaceholderType.VARIABLE_CONDITION,
             separators={"and", "or"},
         )
     },

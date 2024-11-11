@@ -43,6 +43,11 @@ from sql_string import Absent, sql
             "select x from y join z",
             [],
         ),
+        (
+            "UPDATE x SET c = {c}",
+            "update x set c = ?",
+            [None],
+        ),
     ],
 )
 def test_select(query: str, expected_query: str, expected_values: list[Any]) -> None:
