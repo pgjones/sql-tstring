@@ -4,6 +4,8 @@ import pytest
 
 from sql_string import Absent, sql
 
+TZ = "uk"
+
 
 @pytest.mark.parametrize(
     "query, expected_query, expected_values",
@@ -44,6 +46,11 @@ from sql_string import Absent, sql
             [],
         ),
         (
+            "SELECT x FROM y WHERE DATE(b AT TIME ZONE {TZ}) >= {b}",
+            "select x from y where DATE (b AT TIME ZONE ?) >= ?",
+            ["uk", 2],
+        ),
+        (
             "UPDATE x SET c = {c}",
             "update x set c = ?",
             [None],
@@ -54,7 +61,7 @@ def test_select(query: str, expected_query: str, expected_values: list[Any]) -> 
     a = Absent()
     b = 2
     c = None
-    assert (expected_query, expected_values) == sql(query, locals())
+    assert (expected_query, expected_values) == sql(query, locals() | globals())
 
 
 @pytest.mark.parametrize(
