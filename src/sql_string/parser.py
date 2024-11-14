@@ -120,6 +120,16 @@ CLAUSES: ClauseDictionary = {
             allow_empty=False, placeholder_type=ClausePlaceholderType.TABLE, separators=set()
         )
     },
+    "limit": {
+        "": ClauseProperties(
+            allow_empty=False, placeholder_type=ClausePlaceholderType.VARIABLE, separators=set()
+        )
+    },
+    "offset": {
+        "": ClauseProperties(
+            allow_empty=False, placeholder_type=ClausePlaceholderType.VARIABLE, separators=set()
+        )
+    },
     "returning": {
         "": ClauseProperties(
             allow_empty=False, placeholder_type=ClausePlaceholderType.DISALLOWED, separators={","}

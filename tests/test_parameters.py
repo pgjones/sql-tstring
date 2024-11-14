@@ -51,6 +51,11 @@ TZ = "uk"
             ["uk", 2],
         ),
         (
+            "SELECT x FROM y LIMIT {b} OFFSET {b}",
+            "select x from y limit ? offset ?",
+            [2, 2],
+        ),
+        (
             "UPDATE x SET c = {c}",
             "update x set c = ?",
             [None],
