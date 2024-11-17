@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 
-from sql_string import Absent, sql
+from sql_tstring import Absent, sql
 
 TZ = "uk"
 

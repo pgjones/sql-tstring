@@ -1,4 +1,4 @@
-from sql_string import sql
+from sql_tstring import sql
 
 
 def test_literals() -> None:

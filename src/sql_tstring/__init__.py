@@ -6,7 +6,7 @@ from dataclasses import dataclass, field, replace
 from types import TracebackType
 from typing import Any, Literal
 
-from sql_string.parser import (
+from sql_tstring.parser import (
     Clause,
     ClausePlaceholderType,
     Expression,
@@ -25,7 +25,7 @@ class Context:
     tables: set[str] = field(default_factory=set)
 
 
-_context_var: ContextVar[Context] = ContextVar("sql_string_context")
+_context_var: ContextVar[Context] = ContextVar("sql_tstring_context")
 
 
 def get_context() -> Context:

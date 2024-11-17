@@ -1,5 +1,5 @@
 [project]
-name = "sql-string"
+name = "sql-tstring"
 version = "0.1.0"
 description = "SQL builder via string templates"
 authors = [
@@ -18,10 +18,10 @@ classifiers = [
     "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-include = ["src/sql_string/py.typed"]
+include = ["src/sql_tstring/py.typed"]
 license = {text = "MIT"}
 readme = "README.rst"
-repository = "https://github.com/pgjones/sql-string/"
+repository = "https://github.com/pgjones/sql-tstring/"
 dependencies = []
 requires-python = ">=3.12"
 
@@ -35,7 +35,7 @@ line-length = 100
 combine_as_imports = true
 force_grid_wrap = 0
 include_trailing_comma = true
-known_first_party = "sql_string, tests"
+known_first_party = "sql_tstring, tests"
 line_length = 100
 multi_line_output = 3
 no_lines_before = "LOCALFOLDER"

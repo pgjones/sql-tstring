@@ -1,6 +1,6 @@
 import pytest
 
-from sql_string import Absent, sql, sql_context
+from sql_tstring import Absent, sql, sql_context
 
 
 def test_order_by() -> None:
