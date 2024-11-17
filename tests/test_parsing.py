@@ -13,7 +13,7 @@ def test_delete_from() -> None:
 
 def test_nested() -> None:
     query, _ = sql("SELECT COALESCE(x, now())", locals())
-    assert query == "select COALESCE (x , now ())"
+    assert query == "select coalesce(x , now())"
 
 
 def test_cte() -> None:

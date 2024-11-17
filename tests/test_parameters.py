@@ -17,7 +17,7 @@ TZ = "uk"
         ),
         (
             "SELECT x FROM y WHERE a = ANY({a}) AND b = ANY({b})",
-            "select x from y where b = ANY (?)",
+            "select x from y where b = any(?)",
             [2],
         ),
         (
@@ -32,7 +32,7 @@ TZ = "uk"
         ),
         (
             "SELECT x FROM y WHERE DATE(b) <= {b} AND DATE(a) >= {a}",
-            "select x from y where DATE (b) <= ?",
+            "select x from y where date(b) <= ?",
             [2],
         ),
         (
@@ -47,13 +47,18 @@ TZ = "uk"
         ),
         (
             "SELECT x FROM y WHERE DATE(b AT TIME ZONE {TZ}) >= {b}",
-            "select x from y where DATE (b AT TIME ZONE ?) >= ?",
+            "select x from y where date(b AT TIME ZONE ?) >= ?",
             ["uk", 2],
         ),
         (
             "SELECT x FROM y LIMIT {b} OFFSET {b}",
             "select x from y limit ? offset ?",
             [2, 2],
+        ),
+        (
+            "SELECT x FROM y ORDER BY ARRAY_POSITION({b}, x)",
+            "select x from y order by array_position(? , x)",
+            [2],
         ),
         (
             "UPDATE x SET c = {c}",

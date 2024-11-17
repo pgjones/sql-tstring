@@ -6,12 +6,12 @@ from enum import auto, Enum, unique
 from functools import lru_cache
 from typing import cast
 
-SPLIT_RE = re.compile(r"([ ,;()])")
+SPLIT_RE = re.compile(r"([^\s]+\(|\(|[ ,;)])")
 PLACEHOLDER_RE = re.compile(r"(?<=(?<!\{)\{)[^{}]*(?=\}(?!\}))")
 
 
 @unique
-class ClausePlaceholderType(Enum):
+class PlaceholderType(Enum):
     COLUMN = auto()
     DISALLOWED = auto()
     LOCK = auto()
@@ -24,7 +24,7 @@ class ClausePlaceholderType(Enum):
 @dataclass
 class ClauseProperties:
     allow_empty: bool
-    placeholder_type: ClausePlaceholderType
+    placeholder_type: PlaceholderType
     separators: set[str]
 
 
@@ -34,7 +34,7 @@ CLAUSES: ClauseDictionary = {
     "delete": {
         "from": {
             "": ClauseProperties(
-                allow_empty=False, placeholder_type=ClausePlaceholderType.TABLE, separators=set()
+                allow_empty=False, placeholder_type=PlaceholderType.TABLE, separators=set()
             ),
         },
     },
@@ -42,7 +42,7 @@ CLAUSES: ClauseDictionary = {
         "values": {
             "": ClauseProperties(
                 allow_empty=True,
-                placeholder_type=ClausePlaceholderType.DISALLOWED,
+                placeholder_type=PlaceholderType.DISALLOWED,
                 separators=set(),
             ),
         },
@@ -50,14 +50,14 @@ CLAUSES: ClauseDictionary = {
     "for": {
         "update": {
             "": ClauseProperties(
-                allow_empty=True, placeholder_type=ClausePlaceholderType.LOCK, separators=set()
+                allow_empty=True, placeholder_type=PlaceholderType.LOCK, separators=set()
             )
         },
     },
     "group": {
         "by": {
             "": ClauseProperties(
-                allow_empty=False, placeholder_type=ClausePlaceholderType.COLUMN, separators={","}
+                allow_empty=False, placeholder_type=PlaceholderType.COLUMN, separators={","}
             )
         },
     },
@@ -65,7 +65,7 @@ CLAUSES: ClauseDictionary = {
         "into": {
             "": ClauseProperties(
                 allow_empty=True,
-                placeholder_type=ClausePlaceholderType.DISALLOWED,
+                placeholder_type=PlaceholderType.DISALLOWED,
                 separators=set(),
             )
         },
@@ -74,18 +74,18 @@ CLAUSES: ClauseDictionary = {
         "conflict": {
             "": ClauseProperties(
                 allow_empty=True,
-                placeholder_type=ClausePlaceholderType.DISALLOWED,
+                placeholder_type=PlaceholderType.DISALLOWED,
                 separators=set(),
             )
         },
         "": ClauseProperties(
-            allow_empty=False, placeholder_type=ClausePlaceholderType.COLUMN, separators={","}
+            allow_empty=False, placeholder_type=PlaceholderType.COLUMN, separators={","}
         ),
     },
     "order": {
         "by": {
             "": ClauseProperties(
-                allow_empty=False, placeholder_type=ClausePlaceholderType.COLUMN, separators={","}
+                allow_empty=False, placeholder_type=PlaceholderType.COLUMN, separators={","}
             )
         },
     },
@@ -94,78 +94,78 @@ CLAUSES: ClauseDictionary = {
             "set": {
                 "": ClauseProperties(
                     allow_empty=False,
-                    placeholder_type=ClausePlaceholderType.VARIABLE,
+                    placeholder_type=PlaceholderType.VARIABLE,
                     separators={","},
                 ),
             },
         },
         "": ClauseProperties(
-            allow_empty=False, placeholder_type=ClausePlaceholderType.DISALLOWED, separators=set()
+            allow_empty=False, placeholder_type=PlaceholderType.DISALLOWED, separators=set()
         ),
     },
     "from": {
         "": ClauseProperties(
-            allow_empty=False, placeholder_type=ClausePlaceholderType.TABLE, separators=set()
+            allow_empty=False, placeholder_type=PlaceholderType.TABLE, separators=set()
         )
     },
     "having": {
         "": ClauseProperties(
             allow_empty=False,
-            placeholder_type=ClausePlaceholderType.VARIABLE_CONDITION,
+            placeholder_type=PlaceholderType.VARIABLE_CONDITION,
             separators={"and", "or"},
         )
     },
     "join": {
         "": ClauseProperties(
-            allow_empty=False, placeholder_type=ClausePlaceholderType.TABLE, separators=set()
+            allow_empty=False, placeholder_type=PlaceholderType.TABLE, separators=set()
         )
     },
     "limit": {
         "": ClauseProperties(
-            allow_empty=False, placeholder_type=ClausePlaceholderType.VARIABLE, separators=set()
+            allow_empty=False, placeholder_type=PlaceholderType.VARIABLE, separators=set()
         )
     },
     "offset": {
         "": ClauseProperties(
-            allow_empty=False, placeholder_type=ClausePlaceholderType.VARIABLE, separators=set()
+            allow_empty=False, placeholder_type=PlaceholderType.VARIABLE, separators=set()
         )
     },
     "returning": {
         "": ClauseProperties(
-            allow_empty=False, placeholder_type=ClausePlaceholderType.DISALLOWED, separators={","}
+            allow_empty=False, placeholder_type=PlaceholderType.DISALLOWED, separators={","}
         )
     },
     "select": {
         "": ClauseProperties(
-            allow_empty=False, placeholder_type=ClausePlaceholderType.COLUMN, separators={","}
+            allow_empty=False, placeholder_type=PlaceholderType.COLUMN, separators={","}
         )
     },
     "set": {
         "": ClauseProperties(
-            allow_empty=False, placeholder_type=ClausePlaceholderType.VARIABLE, separators={","}
+            allow_empty=False, placeholder_type=PlaceholderType.VARIABLE, separators={","}
         )
     },
     "update": {
         "": ClauseProperties(
-            allow_empty=False, placeholder_type=ClausePlaceholderType.DISALLOWED, separators=set()
+            allow_empty=False, placeholder_type=PlaceholderType.DISALLOWED, separators=set()
         )
     },
     "values": {
         "": ClauseProperties(
             allow_empty=False,
-            placeholder_type=ClausePlaceholderType.VARIABLE_DEFAULT,
+            placeholder_type=PlaceholderType.VARIABLE_DEFAULT,
             separators={","},
         )
     },
     "with": {
         "": ClauseProperties(
-            allow_empty=False, placeholder_type=ClausePlaceholderType.DISALLOWED, separators=set()
+            allow_empty=False, placeholder_type=PlaceholderType.DISALLOWED, separators=set()
         )
     },
     "where": {
         "": ClauseProperties(
             allow_empty=False,
-            placeholder_type=ClausePlaceholderType.VARIABLE_CONDITION,
+            placeholder_type=PlaceholderType.VARIABLE_CONDITION,
             separators={"and", "or"},
         )
     },
@@ -175,7 +175,7 @@ CLAUSES: ClauseDictionary = {
 @dataclass
 class Statement:
     clauses: list[Clause] = field(default_factory=list)
-    parent: Group | None = None
+    parent: Function | Group | None = None
 
 
 @dataclass
@@ -193,32 +193,39 @@ class Clause:
 @dataclass
 class Expression:
     parent: Clause
-    parts: list[Group | Part | Placeholder] = field(default_factory=list)
+    parts: list[Function | Group | Part | Placeholder] = field(default_factory=list)
     removed: bool = False
 
 
 @dataclass
 class Part:
-    parent: Expression | Group
+    parent: Expression | Function | Group
     text: str
 
 
 @dataclass
 class Placeholder:
     name: str
-    parent: Expression | Group
+    parent: Expression | Function | Group
 
 
 @dataclass
 class Group:
-    parent: Expression | Group
-    parts: list[Group | Part | Placeholder | Statement] = field(default_factory=list)
+    parent: Expression | Function | Group
+    parts: list[Function | Group | Part | Placeholder | Statement] = field(default_factory=list)
+
+
+@dataclass
+class Function:
+    name: str
+    parent: Expression | Function | Group
+    parts: list[Function | Group | Part | Placeholder | Statement] = field(default_factory=list)
 
 
 @lru_cache
 def parse_raw(raw: str) -> list[Statement]:
     statements = [Statement()]
-    current_node: Clause | Group | Statement = statements[0]
+    current_node: Clause | Function | Group | Statement = statements[0]
     tokens = _tokenise(raw)
     index = 0
     while index < len(tokens):
@@ -235,12 +242,16 @@ def parse_raw(raw: str) -> list[Statement]:
                 if isinstance(current_node, Statement):
                     raise ValueError(f"Syntax error in '{raw}'")
                 current_node = _parse_group(current_node)
+            elif current_token.endswith("("):
+                if isinstance(current_node, Statement):
+                    raise ValueError(f"Syntax error in '{raw}'")
+                current_node = _parse_function(current_token[:-1], current_node)
             elif current_token == ")":
-                while not isinstance(current_node, Group):
+                while not isinstance(current_node, (Function, Group)):
                     current_node = current_node.parent
 
                 current_node = current_node.parent  # type: ignore[assignment]
-                while not isinstance(current_node, (Clause, Group)):
+                while not isinstance(current_node, (Clause, Function, Group)):
                     current_node = current_node.parent
             elif (match_ := PLACEHOLDER_RE.search(raw_current_token)) is not None:
                 if isinstance(current_node, Statement):
@@ -262,7 +273,7 @@ def _tokenise(raw: str) -> list[str]:
 
 def _parse_clause(
     tokens: list[str],
-    current_node: Clause | Group | Statement,
+    current_node: Clause | Function | Group | Statement,
 ) -> tuple[Clause, int]:
     index = 0
     clause_entry = CLAUSES
@@ -272,7 +283,7 @@ def _parse_clause(
         text = f"{text} {tokens[index]}".lower().strip()
         index += 1
 
-    if isinstance(current_node, Group):
+    if isinstance(current_node, (Function, Group)):
         statement = Statement(parent=current_node)
         current_node.parts.append(statement)
         current_node = statement
@@ -292,10 +303,10 @@ def _parse_clause(
 
 
 def _parse_group(
-    current_node: Clause | Group,
+    current_node: Clause | Function | Group,
 ) -> Group:
-    parent: Expression | Group
-    if isinstance(current_node, Group):
+    parent: Expression | Function | Group
+    if isinstance(current_node, (Function, Group)):
         parent = current_node
     else:
         parent = current_node.expressions[-1]
@@ -304,12 +315,26 @@ def _parse_group(
     return group
 
 
+def _parse_function(
+    name: str,
+    current_node: Clause | Function | Group,
+) -> Function:
+    parent: Expression | Function | Group
+    if isinstance(current_node, (Function, Group)):
+        parent = current_node
+    else:
+        parent = current_node.expressions[-1]
+    func = Function(name=name, parent=parent)
+    parent.parts.append(func)
+    return func
+
+
 def _parse_placeholder(
     name: str,
-    current_node: Clause | Group,
+    current_node: Clause | Function | Group,
 ) -> None:
-    parent: Expression | Group
-    if isinstance(current_node, Group):
+    parent: Expression | Function | Group
+    if isinstance(current_node, (Function, Group)):
         parent = current_node
     else:
         parent = current_node.expressions[-1]
@@ -319,10 +344,10 @@ def _parse_placeholder(
 
 def _parse_part(
     text: str,
-    current_node: Clause | Group,
+    current_node: Clause | Function | Group,
 ) -> None:
-    parent: Expression | Group
-    if isinstance(current_node, Group):
+    parent: Expression | Function | Group
+    if isinstance(current_node, (Function, Group)):
         parent = current_node
     else:
         parent = current_node.expressions[-1]

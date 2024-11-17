@@ -8,12 +8,13 @@ from typing import Any, Literal
 
 from sql_tstring.parser import (
     Clause,
-    ClausePlaceholderType,
     Expression,
+    Function,
     Group,
     parse_raw,
     Part,
     Placeholder,
+    PlaceholderType,
     Statement,
 )
 
@@ -91,7 +92,7 @@ def _check_valid(value: str, valid_options: set[str]) -> None:
 
 
 def _print_node(
-    node: Clause | Expression | Group | Part | Placeholder | Statement,
+    node: Clause | Expression | Function | Group | Part | Placeholder | Statement,
     placeholders: list | None = None,
     dialect: str = "sql",
 ) -> str:
@@ -120,6 +121,9 @@ def _print_node(
                 result = " ".join(_print_node(part, placeholders, dialect) for part in node.parts)
             else:
                 result = ""
+        case Function():
+            arguments = " ".join(_print_node(part, placeholders, dialect) for part in node.parts)
+            result = f"{node.name}({arguments})"
         case Group():
             result = (
                 f"({" ".join(_print_node(part, placeholders, dialect) for part in node.parts)})"
@@ -134,12 +138,11 @@ def _print_node(
 
 
 def _replace_placeholders(
-    node: Clause | Expression | Group | Part | Placeholder | Statement,
+    node: Clause | Expression | Function | Group | Part | Placeholder | Statement,
     index: int,
     values: dict[str, Any],
 ) -> list[Any]:
     result = []
-    ctx = get_context()
     match node:
         case Statement():
             for clause_ in node.clauses:
@@ -147,61 +150,77 @@ def _replace_placeholders(
         case Clause():
             for index, expression_ in enumerate(node.expressions):
                 result.extend(_replace_placeholders(expression_, index, values))
-        case Expression() | Group():
+        case Expression() | Function() | Group():
             for index, part in enumerate(node.parts):
                 result.extend(_replace_placeholders(part, index, values))
         case Placeholder():
-            clause = node.parent
-            while not isinstance(clause, Clause):
-                clause = clause.parent  # type: ignore
+            result.extend(_replace_placeholder(node, index, values))
 
-            value = values[node.name]
-            new_node: Part | Placeholder
-            if value is Absent or isinstance(value, Absent):
-                if clause.properties.placeholder_type == ClausePlaceholderType.VARIABLE_DEFAULT:
-                    new_node = Part(text="default", parent=node.parent)
-                    node.parent.parts[index] = new_node
-                elif clause.properties.placeholder_type == ClausePlaceholderType.LOCK:
-                    clause.removed = True
-                else:
-                    expression = node.parent
-                    while not isinstance(expression, Expression):
-                        expression = expression.parent
+    return result
 
-                    expression.removed = True
+
+def _replace_placeholder(
+    node: Placeholder,
+    index: int,
+    values: dict[str, Any],
+) -> list[Any]:
+    result = []
+    ctx = get_context()
+
+    clause_or_function = node.parent
+    while not isinstance(clause_or_function, (Clause, Function)):
+        clause_or_function = clause_or_function.parent  # type: ignore
+
+    clause: Clause | None = None
+    placeholder_type = PlaceholderType.VARIABLE
+    if isinstance(clause_or_function, Clause):
+        clause = clause_or_function
+        placeholder_type = clause_or_function.properties.placeholder_type
+
+    value = values[node.name]
+    new_node: Part | Placeholder
+    if value is Absent or isinstance(value, Absent):
+        if placeholder_type == PlaceholderType.VARIABLE_DEFAULT:
+            new_node = Part(text="default", parent=node.parent)
+            node.parent.parts[index] = new_node
+        elif placeholder_type == PlaceholderType.LOCK:
+            if clause is not None:
+                clause.removed = True
+        else:
+            expression = node.parent
+            while not isinstance(expression, Expression):
+                expression = expression.parent
+
+            expression.removed = True
+    else:
+        if clause is not None and clause.text == "order by":
+            _check_valid(value, ctx.columns | {"ASC", "DESC"})
+            new_node = Part(text=value, parent=node.parent)
+        elif placeholder_type == PlaceholderType.COLUMN:
+            _check_valid(value, ctx.columns)
+            new_node = Part(text=value, parent=node.parent)
+        elif placeholder_type == PlaceholderType.TABLE:
+            _check_valid(value, ctx.tables)
+            new_node = Part(text=value, parent=node.parent)
+        elif placeholder_type == PlaceholderType.LOCK:
+            _check_valid(value, {"", "NOWAIT", "SKIP LOCKED"})
+            new_node = Part(text=value, parent=node.parent)
+        else:
+            if value is None and placeholder_type == PlaceholderType.VARIABLE_CONDITION:
+                for part in node.parent.parts:
+                    if isinstance(part, Part):
+                        if part.text == "=":
+                            part.text = "is"
+                        elif part.text in {"!=", "<>"}:
+                            part.text = "is not"
+                new_node = Part(text="null", parent=node.parent)
             else:
-                if clause.text == "order by":
-                    _check_valid(value, ctx.columns | {"ASC", "DESC"})
-                    new_node = Part(text=value, parent=node.parent)
-                elif clause.properties.placeholder_type == ClausePlaceholderType.COLUMN:
-                    _check_valid(value, ctx.columns)
-                    new_node = Part(text=value, parent=node.parent)
-                elif clause.properties.placeholder_type == ClausePlaceholderType.TABLE:
-                    _check_valid(value, ctx.tables)
-                    new_node = Part(text=value, parent=node.parent)
-                elif clause.properties.placeholder_type == ClausePlaceholderType.LOCK:
-                    _check_valid(value, {"", "NOWAIT", "SKIP LOCKED"})
-                    new_node = Part(text=value, parent=node.parent)
-                else:
-                    if (
-                        value is None
-                        and clause.properties.placeholder_type
-                        == ClausePlaceholderType.VARIABLE_CONDITION
-                    ):
-                        for part in node.parent.parts:
-                            if isinstance(part, Part):
-                                if part.text == "=":
-                                    part.text = "is"
-                                elif part.text in {"!=", "<>"}:
-                                    part.text = "is not"
-                        new_node = Part(text="null", parent=node.parent)
-                    else:
-                        new_node = node
-                        result.append(value)
+                new_node = node
+                result.append(value)
 
-                if isinstance(node.parent, (Expression, Group)):
-                    node.parent.parts[index] = new_node
-                else:
-                    raise RuntimeError("Invalid placeholder")
+        if isinstance(node.parent, (Expression, Function, Group)):
+            node.parent.parts[index] = new_node
+        else:
+            raise RuntimeError("Invalid placeholder")
 
     return result
