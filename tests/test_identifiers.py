@@ -1,10 +1,10 @@
 import pytest
 
-from sql_tstring import Absent, sql, sql_context
+from sql_tstring import RewritingValue, sql, sql_context
 
 
 def test_order_by() -> None:
-    a = Absent()
+    a = RewritingValue.ABSENT
     b = "x"
     with sql_context(columns={"x"}):
         assert ("select x from y order by x", []) == sql(
@@ -22,7 +22,7 @@ def test_order_by_direction() -> None:
 
 
 def test_order_by_invalid_column() -> None:
-    a = Absent()
+    a = RewritingValue.ABSENT
     b = "x"
     with pytest.raises(ValueError):
         sql("SELECT x FROM y ORDER BY {a}, {b}", locals())
@@ -41,5 +41,5 @@ def test_lock(lock_type: str, expected: str) -> None:
 
 
 def test_absent_lock() -> None:
-    a = Absent
+    a = RewritingValue.ABSENT
     assert ("select x from y", []) == sql("SELECT x FROM y FOR UPDATE {a}", locals())

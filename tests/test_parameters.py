@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 
-from sql_tstring import Absent, sql
+from sql_tstring import RewritingValue, sql
 
 TZ = "uk"
 
@@ -37,7 +37,12 @@ TZ = "uk"
         ),
         (
             "SELECT x FROM y WHERE c = {c} OR c != {c}",
-            "select x from y where c is null OR c is not null",
+            "select x from y where c = ? OR c != ?",
+            [None, None],
+        ),
+        (
+            "SELECT x FROM y WHERE d = {d} OR d != {d}",
+            "select x from y where d is null OR d is null",
             [],
         ),
         (
@@ -68,9 +73,10 @@ TZ = "uk"
     ],
 )
 def test_select(query: str, expected_query: str, expected_values: list[Any]) -> None:
-    a = Absent()
+    a = RewritingValue.ABSENT
     b = 2
     c = None
+    d = RewritingValue.IS_NULL
     assert (expected_query, expected_values) == sql(query, locals() | globals())
 
 
@@ -85,7 +91,7 @@ def test_select(query: str, expected_query: str, expected_values: list[Any]) -> 
     ],
 )
 def test_update(query: str, expected_query: str, expected_values: list[Any]) -> None:
-    a = Absent()
+    a = RewritingValue.ABSENT
     b = 2
     assert (expected_query, expected_values) == sql(query, locals())
 
@@ -111,6 +117,6 @@ def test_update(query: str, expected_query: str, expected_values: list[Any]) -> 
     ],
 )
 def test_insert(query: str, expected_query: str, expected_values: list[Any]) -> None:
-    a = Absent()
+    a = RewritingValue.ABSENT
     b = 2
     assert (expected_query, expected_values) == sql(query, locals())

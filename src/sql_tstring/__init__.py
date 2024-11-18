@@ -3,6 +3,7 @@ from __future__ import annotations
 from contextvars import ContextVar
 from copy import deepcopy
 from dataclasses import dataclass, field, replace
+from enum import auto, Enum, unique
 from types import TracebackType
 from typing import Any, Literal
 
@@ -17,6 +18,19 @@ from sql_tstring.parser import (
     PlaceholderType,
     Statement,
 )
+
+
+@unique
+class RewritingValue(Enum):
+    ABSENT = auto()
+    IS_NULL = auto()
+    IS_NOT_NULL = auto()
+
+
+type AbsentType = Literal[RewritingValue.ABSENT]
+Absent: AbsentType = RewritingValue.ABSENT
+IsNull = RewritingValue.IS_NULL
+IsNotNull = RewritingValue.IS_NOT_NULL
 
 
 @dataclass
@@ -48,10 +62,6 @@ def sql_context(**kwargs: Any) -> _ContextManager:
     for key, value in kwargs.items():
         setattr(ctx_manager._context, key, value)
     return ctx_manager
-
-
-class Absent:
-    pass
 
 
 def sql(query: str, values: dict[str, Any]) -> tuple[str, list]:
@@ -179,7 +189,7 @@ def _replace_placeholder(
 
     value = values[node.name]
     new_node: Part | Placeholder
-    if value is Absent or isinstance(value, Absent):
+    if value is RewritingValue.ABSENT:
         if placeholder_type == PlaceholderType.VARIABLE_DEFAULT:
             new_node = Part(text="default", parent=node.parent)
             node.parent.parts[index] = new_node
@@ -206,12 +216,14 @@ def _replace_placeholder(
             _check_valid(value, {"", "NOWAIT", "SKIP LOCKED"})
             new_node = Part(text=value, parent=node.parent)
         else:
-            if value is None and placeholder_type == PlaceholderType.VARIABLE_CONDITION:
+            if (
+                value is RewritingValue.IS_NULL or value is RewritingValue.IS_NOT_NULL
+            ) and placeholder_type == PlaceholderType.VARIABLE_CONDITION:
                 for part in node.parent.parts:
-                    if isinstance(part, Part):
-                        if part.text == "=":
+                    if isinstance(part, Part) and part.text in {"=", "!=", "<>"}:
+                        if value is RewritingValue.IS_NULL:
                             part.text = "is"
-                        elif part.text in {"!=", "<>"}:
+                        else:
                             part.text = "is not"
                 new_node = Part(text="null", parent=node.parent)
             else:

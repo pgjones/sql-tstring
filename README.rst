@@ -45,8 +45,8 @@ If the value of ``col`` or ``table`` does not match the valid values
 given to the ``sql_context`` function an error will be raised.
 
 SQL-tString will also remove parameters if they are set to the special
-value of ``Absent``. This is most useful for optional updates, or
-conditionals,
+value of ``Absent`` (or ``RewritingValue.Absent``). This is most
+useful for optional updates, or conditionals,
 
 .. code-block:: python
 
