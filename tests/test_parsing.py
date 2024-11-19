@@ -49,3 +49,8 @@ def test_with_conflict() -> None:
 def test_default_insert() -> None:
     query, _ = sql("INSERT INTO tbl DEFAULT VALUES RETURNING id", locals())
     assert query == "insert into tbl default values returning id"
+
+
+def test_grouping() -> None:
+    query, _ = sql("SELECT x FROM y WHERE (date(x) = 1 OR x = 2) AND y = 3", locals())
+    assert query == "select x from y where (date(x) = 1 OR x = 2) AND y = 3"

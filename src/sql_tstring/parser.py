@@ -6,7 +6,7 @@ from enum import auto, Enum, unique
 from functools import lru_cache
 from typing import cast
 
-SPLIT_RE = re.compile(r"([^\s]+\(|\(|[ ,;)])")
+SPLIT_RE = re.compile(r"([^\s(]+\(|\(|[ ,;)])")
 PLACEHOLDER_RE = re.compile(r"(?<=(?<!\{)\{)[^{}]*(?=\}(?!\}))")
 
 
