@@ -1,6 +1,6 @@
 [project]
 name = "sql-tstring"
-version = "0.1.0"
+version = "0.2.0"
 description = "SQL builder via string templates"
 authors = [
     {name = "pgjones", email = "philip.graham.jones@googlemail.com"},
