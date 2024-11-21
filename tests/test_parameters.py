@@ -74,6 +74,16 @@ def test_placeholders(query: str, expected_query: str, expected_values: list[Any
             [],
         ),
         (
+            "SELECT x FROM y WHERE x = 2 AND (u = {val} OR v = 1)",
+            "SELECT x FROM y WHERE x = 2 AND (v = 1)",
+            [],
+        ),
+        (
+            "SELECT x FROM y WHERE x = 2 AND (v = 1 OR u = {val})",
+            "SELECT x FROM y WHERE x = 2 AND (v = 1)",
+            [],
+        ),
+        (
             "SELECT x FROM y WHERE x = {val} AND (v = 1 OR u = 2)",
             "SELECT x FROM y WHERE (v = 1 OR u = 2)",
             [],

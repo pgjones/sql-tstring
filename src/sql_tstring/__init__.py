@@ -10,6 +10,7 @@ from typing import Any, Literal
 from sql_tstring.parser import (
     Clause,
     Expression,
+    ExpressionGroup,
     Function,
     Group,
     parse_raw,
@@ -113,7 +114,7 @@ def _check_valid(
 
 
 def _print_node(
-    node: Clause | Expression | Function | Group | Part | Placeholder | Statement,
+    node: Clause | Expression | ExpressionGroup | Function | Group | Part | Placeholder | Statement,
     placeholders: list | None = None,
     dialect: str = "sql",
 ) -> str:
@@ -123,23 +124,32 @@ def _print_node(
     match node:
         case Statement():
             result = " ".join(_print_node(clause, placeholders, dialect) for clause in node.clauses)
-        case Clause():
-            if not node.removed:
-                expressions = " ".join(
+        case Clause() | ExpressionGroup():
+            expressions = [expression for expression in node.expressions if not expression.removed]
+            result = ""
+            if len(expressions) > 0:
+                result = " ".join(
                     _print_node(expression, placeholders, dialect)
-                    for expression in node.expressions
-                ).strip()
-                for suffix in node.properties.separators:
-                    expressions = expressions.removesuffix(suffix).removesuffix(suffix.upper())
-                if expressions == "" and not node.properties.allow_empty:
+                    for expression in expressions[:-1]
+                )
+                expressions[-1].separator = ""
+                result += f" {_print_node(expressions[-1], placeholders, dialect)}"
+                result = result.strip()
+
+            if isinstance(node, ExpressionGroup):
+                if result != "":
+                    result = f"({result})"
+            else:
+                if node.removed:
+                    result = ""
+                elif result == "" and not node.properties.allow_empty:
                     result = ""
                 else:
-                    result = f"{node.text} {expressions}"
-            else:
-                result = ""
+                    result = f"{node.text} {result}"
         case Expression():
             if not node.removed:
                 result = " ".join(_print_node(part, placeholders, dialect) for part in node.parts)
+                result += f" {node.separator} "
             else:
                 result = ""
         case Function():
@@ -159,7 +169,7 @@ def _print_node(
 
 
 def _replace_placeholders(
-    node: Clause | Expression | Function | Group | Part | Placeholder | Statement,
+    node: Clause | Expression | ExpressionGroup | Function | Group | Part | Placeholder | Statement,
     index: int,
     values: dict[str, Any],
 ) -> list[Any]:
@@ -168,7 +178,7 @@ def _replace_placeholders(
         case Statement():
             for clause_ in node.clauses:
                 result.extend(_replace_placeholders(clause_, 0, values))
-        case Clause():
+        case Clause() | ExpressionGroup():
             for index, expression_ in enumerate(node.expressions):
                 result.extend(_replace_placeholders(expression_, index, values))
         case Expression() | Function() | Group():
@@ -245,7 +255,7 @@ def _replace_placeholder(
                 new_node = node
                 result.append(value)
 
-        if isinstance(node.parent, (Expression, Function, Group)):
+        if isinstance(node.parent, (Expression, ExpressionGroup, Function, Group)):
             node.parent.parts[index] = new_node
         else:
             raise RuntimeError("Invalid placeholder")

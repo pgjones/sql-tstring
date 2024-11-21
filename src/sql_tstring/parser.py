@@ -192,9 +192,12 @@ class Clause:
 
 @dataclass
 class Expression:
-    parent: Clause
-    parts: list[Function | Group | Part | Placeholder] = field(default_factory=list)
+    parent: Clause | ExpressionGroup
+    parts: list[ExpressionGroup | Function | Group | Part | Placeholder] = field(
+        default_factory=list
+    )
     removed: bool = False
+    separator: str = ""
 
 
 @dataclass
@@ -216,6 +219,15 @@ class Group:
 
 
 @dataclass
+class ExpressionGroup:
+    parent: Expression
+    expressions: list[Expression] = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.expressions = [Expression(self)]
+
+
+@dataclass
 class Function:
     name: str
     parent: Expression | Function | Group
@@ -225,7 +237,7 @@ class Function:
 @lru_cache
 def parse_raw(raw: str) -> list[Statement]:
     statements = [Statement()]
-    current_node: Clause | Function | Group | Statement = statements[0]
+    current_node: Clause | ExpressionGroup | Function | Group | Statement = statements[0]
     tokens = _tokenise(raw)
     index = 0
     while index < len(tokens):
@@ -247,11 +259,11 @@ def parse_raw(raw: str) -> list[Statement]:
                     raise ValueError(f"Syntax error in '{raw}'")
                 current_node = _parse_function(raw_current_token[:-1], current_node)
             elif current_token == ")":
-                while not isinstance(current_node, (Function, Group)):
+                while not isinstance(current_node, (ExpressionGroup, Function, Group)):
                     current_node = current_node.parent
 
                 current_node = current_node.parent  # type: ignore[assignment]
-                while not isinstance(current_node, (Clause, Function, Group)):
+                while not isinstance(current_node, (Clause, ExpressionGroup, Function, Group)):
                     current_node = current_node.parent
             elif (match_ := PLACEHOLDER_RE.search(raw_current_token)) is not None:
                 if isinstance(current_node, Statement):
@@ -273,7 +285,7 @@ def _tokenise(raw: str) -> list[str]:
 
 def _parse_clause(
     tokens: list[str],
-    current_node: Clause | Function | Group | Statement,
+    current_node: Clause | ExpressionGroup | Function | Group | Statement,
 ) -> tuple[Clause, int]:
     index = 0
     clause_entry = CLAUSES
@@ -289,7 +301,7 @@ def _parse_clause(
         current_node = statement
 
     while not isinstance(current_node, Statement):
-        current_node = current_node.parent
+        current_node = current_node.parent  # type: ignore
 
     clause_properties = cast(ClauseProperties, clause_entry[""])
     clause = Clause(
@@ -303,21 +315,26 @@ def _parse_clause(
 
 
 def _parse_group(
-    current_node: Clause | Function | Group,
-) -> Group:
-    parent: Expression | Function | Group
+    current_node: Clause | ExpressionGroup | Function | Group,
+) -> ExpressionGroup | Group:
+    group: ExpressionGroup | Group
     if isinstance(current_node, (Function, Group)):
-        parent = current_node
+        group = Group(parent=current_node)
+        current_node.parts.append(group)
+        return group
     else:
         parent = current_node.expressions[-1]
-    group = Group(parent=parent)
-    parent.parts.append(group)
-    return group
+        if len(parent.parts) == 0:
+            group = ExpressionGroup(parent=parent)
+        else:
+            group = Group(parent=parent)
+        parent.parts.append(group)
+        return group
 
 
 def _parse_function(
     name: str,
-    current_node: Clause | Function | Group,
+    current_node: Clause | ExpressionGroup | Function | Group,
 ) -> Function:
     parent: Expression | Function | Group
     if isinstance(current_node, (Function, Group)):
@@ -331,7 +348,7 @@ def _parse_function(
 
 def _parse_placeholder(
     name: str,
-    current_node: Clause | Function | Group,
+    current_node: Clause | ExpressionGroup | Function | Group,
 ) -> None:
     parent: Expression | Function | Group
     if isinstance(current_node, (Function, Group)):
@@ -344,7 +361,7 @@ def _parse_placeholder(
 
 def _parse_part(
     text: str,
-    current_node: Clause | Function | Group,
+    current_node: Clause | ExpressionGroup | Function | Group,
 ) -> None:
     parent: Expression | Function | Group
     if isinstance(current_node, (Function, Group)):
@@ -352,8 +369,15 @@ def _parse_part(
     else:
         parent = current_node.expressions[-1]
     part = Part(parent=parent, text=text)
-    parent.parts.append(part)
+    if isinstance(current_node, (Clause, ExpressionGroup)):
+        clause = current_node
+        while not isinstance(clause, Clause):
+            clause = clause.parent  # type: ignore
 
-    if isinstance(current_node, Clause):
-        if text.lower() in current_node.properties.separators:
+        if text.lower() in clause.properties.separators:
+            current_node.expressions[-1].separator = text
             current_node.expressions.append(Expression(parent=current_node))
+        else:
+            parent.parts.append(part)
+    else:
+        parent.parts.append(part)

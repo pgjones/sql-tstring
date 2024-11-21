@@ -6,6 +6,6 @@ def test_asyncpg() -> None:
     b = RewritingValue.ABSENT
     c = 2
     with sql_context(dialect="asyncpg"):
-        assert ("SELECT x FROM y WHERE a = $1 AND  c = $2", [1, 2]) == sql(
+        assert ("SELECT x FROM y WHERE a = $1 AND c = $2", [1, 2]) == sql(
             "SELECT x FROM y WHERE a = {a} AND b = {b} AND c = {c}", locals()
         )
