@@ -3,17 +3,27 @@ from sql_tstring import sql
 
 def test_literals() -> None:
     query, _ = sql("SELECT x FROM y WHERE x = 'NONE'", locals())
-    assert query == "select x from y where x = 'NONE'"
+    assert query == "SELECT x FROM y WHERE x = 'NONE'"
+
+
+def test_quoted() -> None:
+    query, _ = sql('SELECT "x" FROM "y"', locals())
+    assert query == 'SELECT "x" FROM "y"'
 
 
 def test_delete_from() -> None:
     query, _ = sql("DELETE FROM y WHERE x = 'NONE'", locals())
-    assert query == "delete from y where x = 'NONE'"
+    assert query == "DELETE FROM y WHERE x = 'NONE'"
 
 
 def test_nested() -> None:
     query, _ = sql("SELECT COALESCE(x, now())", locals())
-    assert query == "select coalesce(x , now())"
+    assert query == "SELECT COALESCE(x , now())"
+
+
+def test_lowercase() -> None:
+    query, _ = sql("select x from y where x = 2", locals())
+    assert query == "select x from y where x = 2"
 
 
 def test_cte() -> None:
@@ -26,7 +36,7 @@ def test_cte() -> None:
     )
     assert (
         query
-        == """with cte AS (select DISTINCT x from y) select DISTINCT x from z where x NOT IN (select a from b)"""  # noqa: E501
+        == """WITH cte AS (SELECT DISTINCT x FROM y) SELECT DISTINCT x FROM z WHERE x NOT IN (SELECT a FROM b)"""  # noqa: E501
     )
 
 
@@ -42,15 +52,15 @@ def test_with_conflict() -> None:
     )
     assert (
         query
-        == "insert into x (a , b) values (? , ?) on conflict (a) do update set b = ? returning a , b"  # noqa: E501
+        == "INSERT INTO x (a , b) VALUES (? , ?) ON CONFLICT (a) DO UPDATE SET b = ? RETURNING a , b"  # noqa: E501
     )
 
 
 def test_default_insert() -> None:
     query, _ = sql("INSERT INTO tbl DEFAULT VALUES RETURNING id", locals())
-    assert query == "insert into tbl default values returning id"
+    assert query == "INSERT INTO tbl DEFAULT VALUES RETURNING id"
 
 
 def test_grouping() -> None:
-    query, _ = sql("SELECT x FROM y WHERE (date(x) = 1 OR x = 2) AND y = 3", locals())
-    assert query == "select x from y where (date(x) = 1 OR x = 2) AND y = 3"
+    query, _ = sql("SELECT x FROM y WHERE (DATE(x) = 1 OR x = 2) AND y = 3", locals())
+    assert query == "SELECT x FROM y WHERE (DATE(x) = 1 OR x = 2) AND y = 3"

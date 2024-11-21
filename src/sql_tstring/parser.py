@@ -245,7 +245,7 @@ def parse_raw(raw: str) -> list[Statement]:
             elif current_token.endswith("("):
                 if isinstance(current_node, Statement):
                     raise ValueError(f"Syntax error in '{raw}'")
-                current_node = _parse_function(current_token[:-1], current_node)
+                current_node = _parse_function(raw_current_token[:-1], current_node)
             elif current_token == ")":
                 while not isinstance(current_node, (Function, Group)):
                     current_node = current_node.parent
@@ -280,7 +280,7 @@ def _parse_clause(
     text = ""
     while tokens[index].lower() in clause_entry:
         clause_entry = cast(ClauseDictionary, clause_entry[tokens[index].lower()])
-        text = f"{text} {tokens[index]}".lower().strip()
+        text = f"{text} {tokens[index]}".strip()
         index += 1
 
     if isinstance(current_node, (Function, Group)):

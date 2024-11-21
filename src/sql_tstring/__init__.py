@@ -96,9 +96,20 @@ class _ContextManager:
         set_context(self._original_context)
 
 
-def _check_valid(value: str, valid_options: set[str]) -> None:
-    if value not in valid_options:
-        raise ValueError(f"{value} is not valid, must be one of {valid_options}")
+def _check_valid(
+    value: str,
+    *,
+    case_sensitive: set[str] | None = None,
+    case_insensitive: set[str] | None = None,
+) -> None:
+    if case_sensitive is None:
+        case_sensitive = set()
+    if case_insensitive is None:
+        case_insensitive = set()
+    if value not in case_sensitive and value.lower() not in case_insensitive:
+        raise ValueError(
+            f"{value} is not valid, must be one of {case_sensitive} or {case_insensitive}"
+        )
 
 
 def _print_node(
@@ -191,7 +202,7 @@ def _replace_placeholder(
     new_node: Part | Placeholder
     if value is RewritingValue.ABSENT:
         if placeholder_type == PlaceholderType.VARIABLE_DEFAULT:
-            new_node = Part(text="default", parent=node.parent)
+            new_node = Part(text="DEFAULT", parent=node.parent)
             node.parent.parts[index] = new_node
         elif placeholder_type == PlaceholderType.LOCK:
             if clause is not None:
@@ -203,17 +214,21 @@ def _replace_placeholder(
 
             expression.removed = True
     else:
-        if clause is not None and clause.text == "order by":
-            _check_valid(value, ctx.columns | {"ASC", "DESC"})
+        if clause is not None and clause.text.lower() == "order by":
+            _check_valid(
+                value,
+                case_sensitive=ctx.columns,
+                case_insensitive={"asc", "ascending", "desc", "descending"},
+            )
             new_node = Part(text=value, parent=node.parent)
         elif placeholder_type == PlaceholderType.COLUMN:
-            _check_valid(value, ctx.columns)
+            _check_valid(value, case_sensitive=ctx.columns)
             new_node = Part(text=value, parent=node.parent)
         elif placeholder_type == PlaceholderType.TABLE:
-            _check_valid(value, ctx.tables)
+            _check_valid(value, case_sensitive=ctx.tables)
             new_node = Part(text=value, parent=node.parent)
         elif placeholder_type == PlaceholderType.LOCK:
-            _check_valid(value, {"", "NOWAIT", "SKIP LOCKED"})
+            _check_valid(value, case_insensitive={"", "nowait", "skip locked"})
             new_node = Part(text=value, parent=node.parent)
         else:
             if (
@@ -222,10 +237,10 @@ def _replace_placeholder(
                 for part in node.parent.parts:
                     if isinstance(part, Part) and part.text in {"=", "!=", "<>"}:
                         if value is RewritingValue.IS_NULL:
-                            part.text = "is"
+                            part.text = "IS"
                         else:
-                            part.text = "is not"
-                new_node = Part(text="null", parent=node.parent)
+                            part.text = "IS NOT"
+                new_node = Part(text="NULL", parent=node.parent)
             else:
                 new_node = node
                 result.append(value)
