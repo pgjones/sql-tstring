@@ -19,7 +19,7 @@ without allowing for SQL injection. The basic usage is as follows,
         locals(),
     )
 
-The resultant query is a ``str`` and values a ``list[Any]``, both are
+The ``query`` is a ``str`` and ``values`` a ``list[Any]``, both are
 then typically passed to a DB connection. Note the parameters can only
 be identifiers that identify variables (in the above example in the
 locals()) e.g. ``{a - 1}`` is not valid.
@@ -44,6 +44,9 @@ column or table names to be used,
 If the value of ``col`` or ``table`` does not match the valid values
 given to the ``sql_context`` function an error will be raised.
 
+Rewriting values
+----------------
+
 SQL-tString will also remove parameters if they are set to the special
 value of ``Absent`` (or ``RewritingValue.Absent``). This is most
 useful for optional updates, or conditionals,
@@ -65,6 +68,11 @@ useful for optional updates, or conditionals,
 
 As both ``a`` and ``b`` are ``Absent`` the above ``query`` will be
 ``UPDATE tbl SET b =1``.
+
+In addition for conditionals the values ``IsNull`` (or
+``RewritingValue.IS_NULL``) and ``IsNotNull`` (or
+``RewritingValue.IS_NOT_NULL``) can be used to rewrite the conditional
+as expected. This is useful as ``x = NULL`` is always false in SQL.
 
 t-string (PEP 750)
 ------------------
