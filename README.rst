@@ -92,7 +92,7 @@ accepted the usage of this library will change to,
              WHERE a = {a}""",
     )
 
-.. |Build Status| image:: https://github.com/pgjones/sql-sttring/actions/workflows/ci.yml/badge.svg
+.. |Build Status| image:: https://github.com/pgjones/sql-tstring/actions/workflows/ci.yml/badge.svg
    :target: https://github.com/pgjones/sql-tstring/commits/main
 
 .. |pypi| image:: https://img.shields.io/pypi/v/sql-tstring.svg
