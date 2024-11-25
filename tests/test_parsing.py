@@ -64,3 +64,11 @@ def test_default_insert() -> None:
 def test_grouping() -> None:
     query, _ = sql("SELECT x FROM y WHERE (DATE(x) = 1 OR x = 2) AND y = 3", locals())
     assert query == "SELECT x FROM y WHERE (DATE(x) = 1 OR x = 2) AND y = 3"
+
+
+def test_subquery() -> None:
+    query, _ = sql(
+        "SELECT x FROM y JOIN (SELECT z FROM a) ON z = x",
+        locals(),
+    )
+    assert query == "SELECT x FROM y JOIN (SELECT z FROM a) ON z = x"

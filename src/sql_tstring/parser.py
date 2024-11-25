@@ -70,6 +70,13 @@ CLAUSES: ClauseDictionary = {
             )
         },
     },
+    "left": {
+        "join": {
+            "": ClauseProperties(
+                allow_empty=False, placeholder_type=PlaceholderType.TABLE, separators=set()
+            )
+        },
+    },
     "on": {
         "conflict": {
             "": ClauseProperties(
@@ -175,7 +182,7 @@ CLAUSES: ClauseDictionary = {
 @dataclass
 class Statement:
     clauses: list[Clause] = field(default_factory=list)
-    parent: Function | Group | None = None
+    parent: ExpressionGroup | Function | Group | None = None
 
 
 @dataclass
@@ -193,7 +200,7 @@ class Clause:
 @dataclass
 class Expression:
     parent: Clause | ExpressionGroup
-    parts: list[ExpressionGroup | Function | Group | Part | Placeholder] = field(
+    parts: list[ExpressionGroup | Function | Group | Part | Placeholder | Statement] = field(
         default_factory=list
     )
     removed: bool = False
@@ -299,9 +306,13 @@ def _parse_clause(
         statement = Statement(parent=current_node)
         current_node.parts.append(statement)
         current_node = statement
+    elif isinstance(current_node, ExpressionGroup):
+        statement = Statement(parent=current_node)
+        current_node.expressions[-1].parts.append(statement)
+        current_node = statement
 
     while not isinstance(current_node, Statement):
-        current_node = current_node.parent  # type: ignore
+        current_node = current_node.parent
 
     clause_properties = cast(ClauseProperties, clause_entry[""])
     clause = Clause(
