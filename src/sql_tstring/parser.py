@@ -386,8 +386,7 @@ def _parse_part(
             clause = clause.parent  # type: ignore
 
         if text.lower() in clause.properties.separators:
-            current_node.expressions[-1].separator = text
-            current_node.expressions.append(Expression(parent=current_node))
+            current_node.expressions.append(Expression(parent=current_node, separator=text))
         else:
             parent.parts.append(part)
     else:

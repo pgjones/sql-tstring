@@ -125,16 +125,17 @@ def _print_node(
         case Statement():
             result = " ".join(_print_node(clause, placeholders, dialect) for clause in node.clauses)
         case Clause() | ExpressionGroup():
-            expressions = [expression for expression in node.expressions if not expression.removed]
             result = ""
-            if len(expressions) > 0:
-                result = " ".join(
-                    _print_node(expression, placeholders, dialect)
-                    for expression in expressions[:-1]
-                )
-                expressions[-1].separator = ""
-                result += f" {_print_node(expressions[-1], placeholders, dialect)}"
-                result = result.strip()
+
+            for expression in node.expressions:
+                addition = _print_node(expression, placeholders, dialect)
+                separator = ""
+                if result != "":
+                    separator = expression.separator
+                if addition != "":
+                    result += f" {separator} {addition}"
+
+            result = result.strip()
 
             if isinstance(node, ExpressionGroup):
                 if result != "":
@@ -149,7 +150,6 @@ def _print_node(
         case Expression():
             if not node.removed:
                 result = " ".join(_print_node(part, placeholders, dialect) for part in node.parts)
-                result += f" {node.separator} "
             else:
                 result = ""
         case Function():
