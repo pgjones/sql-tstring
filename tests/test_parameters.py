@@ -26,6 +26,11 @@ TZ = "uk"
             [2],
         ),
         (
+            "SELECT x FROM y JOIN z ON u = {val}",
+            "SELECT x FROM y JOIN z ON u = ?",
+            [2],
+        ),
+        (
             "UPDATE x SET x = {val}",
             "UPDATE x SET x = ?",
             [2],

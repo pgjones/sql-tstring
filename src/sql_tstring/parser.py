@@ -86,7 +86,7 @@ CLAUSES: ClauseDictionary = {
             )
         },
         "": ClauseProperties(
-            allow_empty=False, placeholder_type=PlaceholderType.COLUMN, separators={","}
+            allow_empty=False, placeholder_type=PlaceholderType.VARIABLE, separators={","}
         ),
     },
     "order": {
