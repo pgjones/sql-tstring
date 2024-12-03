@@ -30,6 +30,10 @@ class ClauseProperties:
 
 type ClauseDictionary = dict[str, "ClauseDictionary" | ClauseProperties]
 
+_JOIN_CLAUSE = ClauseProperties(
+    allow_empty=False, placeholder_type=PlaceholderType.TABLE, separators=set()
+)
+
 CLAUSES: ClauseDictionary = {
     "delete": {
         "from": {
@@ -54,11 +58,26 @@ CLAUSES: ClauseDictionary = {
             )
         },
     },
+    "full": {
+        "join": {
+            "": _JOIN_CLAUSE,
+        },
+        "outer": {
+            "join": {
+                "": _JOIN_CLAUSE,
+            },
+        },
+    },
     "group": {
         "by": {
             "": ClauseProperties(
                 allow_empty=False, placeholder_type=PlaceholderType.COLUMN, separators={","}
             )
+        },
+    },
+    "inner": {
+        "join": {
+            "": _JOIN_CLAUSE,
         },
     },
     "insert": {
@@ -72,9 +91,12 @@ CLAUSES: ClauseDictionary = {
     },
     "left": {
         "join": {
-            "": ClauseProperties(
-                allow_empty=False, placeholder_type=PlaceholderType.TABLE, separators=set()
-            )
+            "": _JOIN_CLAUSE,
+        },
+        "outer": {
+            "join": {
+                "": _JOIN_CLAUSE,
+            },
         },
     },
     "on": {
@@ -94,6 +116,16 @@ CLAUSES: ClauseDictionary = {
             "": ClauseProperties(
                 allow_empty=False, placeholder_type=PlaceholderType.COLUMN, separators={","}
             )
+        },
+    },
+    "right": {
+        "join": {
+            "": _JOIN_CLAUSE,
+        },
+        "outer": {
+            "join": {
+                "": _JOIN_CLAUSE,
+            },
         },
     },
     "do": {
@@ -123,9 +155,7 @@ CLAUSES: ClauseDictionary = {
         )
     },
     "join": {
-        "": ClauseProperties(
-            allow_empty=False, placeholder_type=PlaceholderType.TABLE, separators=set()
-        )
+        "": _JOIN_CLAUSE,
     },
     "limit": {
         "": ClauseProperties(
