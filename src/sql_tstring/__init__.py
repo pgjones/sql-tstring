@@ -5,7 +5,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from enum import auto, Enum, unique
 from types import TracebackType
-from typing import Any, Literal
+from typing import Any, cast, Literal
 
 from sql_tstring.parser import (
     Clause,
@@ -13,12 +13,13 @@ from sql_tstring.parser import (
     ExpressionGroup,
     Function,
     Group,
-    parse_raw,
+    parse_template,
     Part,
     Placeholder,
     PlaceholderType,
     Statement,
 )
+from sql_tstring.t import t
 
 
 @unique
@@ -66,13 +67,13 @@ def sql_context(**kwargs: Any) -> _ContextManager:
 
 
 def sql(query: str, values: dict[str, Any]) -> tuple[str, list]:
-    parsed_queries = parse_raw(query)
+    parsed_queries = parse_template(t(query, values))
     result_str = ""
     result_values: list[Any] = []
     ctx = get_context()
     for raw_parsed_query in parsed_queries:
         parsed_query = deepcopy(raw_parsed_query)
-        new_values = _replace_placeholders(parsed_query, 0, values)
+        new_values = _replace_placeholders(parsed_query, 0)
         result_str += _print_node(parsed_query, [None] * len(result_values), ctx.dialect)
         result_values.extend(new_values)
 
@@ -98,7 +99,7 @@ class _ContextManager:
 
 
 def _check_valid(
-    value: str,
+    value: object,
     *,
     case_sensitive: set[str] | None = None,
     case_insensitive: set[str] | None = None,
@@ -107,7 +108,9 @@ def _check_valid(
         case_sensitive = set()
     if case_insensitive is None:
         case_insensitive = set()
-    if value not in case_sensitive and value.lower() not in case_insensitive:
+    if not isinstance(value, str) or (
+        value not in case_sensitive and value.lower() not in case_insensitive
+    ):
         raise ValueError(
             f"{value} is not valid, must be one of {case_sensitive} or {case_insensitive}"
         )
@@ -171,21 +174,20 @@ def _print_node(
 def _replace_placeholders(
     node: Clause | Expression | ExpressionGroup | Function | Group | Part | Placeholder | Statement,
     index: int,
-    values: dict[str, Any],
 ) -> list[Any]:
     result = []
     match node:
         case Statement():
             for clause_ in node.clauses:
-                result.extend(_replace_placeholders(clause_, 0, values))
+                result.extend(_replace_placeholders(clause_, 0))
         case Clause() | ExpressionGroup():
             for index, expression_ in enumerate(node.expressions):
-                result.extend(_replace_placeholders(expression_, index, values))
+                result.extend(_replace_placeholders(expression_, index))
         case Expression() | Function() | Group():
             for index, part in enumerate(node.parts):
-                result.extend(_replace_placeholders(part, index, values))
+                result.extend(_replace_placeholders(part, index))
         case Placeholder():
-            result.extend(_replace_placeholder(node, index, values))
+            result.extend(_replace_placeholder(node, index))
 
     return result
 
@@ -193,7 +195,6 @@ def _replace_placeholders(
 def _replace_placeholder(
     node: Placeholder,
     index: int,
-    values: dict[str, Any],
 ) -> list[Any]:
     result = []
     ctx = get_context()
@@ -208,7 +209,7 @@ def _replace_placeholder(
         clause = clause_or_function
         placeholder_type = clause_or_function.properties.placeholder_type
 
-    value = values[node.name]
+    value = node.value
     new_node: Part | Placeholder
     if value is RewritingValue.ABSENT:
         if placeholder_type == PlaceholderType.VARIABLE_DEFAULT:
@@ -230,16 +231,16 @@ def _replace_placeholder(
                 case_sensitive=ctx.columns,
                 case_insensitive={"asc", "ascending", "desc", "descending"},
             )
-            new_node = Part(text=value, parent=node.parent)
+            new_node = Part(text=cast(str, value), parent=node.parent)
         elif placeholder_type == PlaceholderType.COLUMN:
             _check_valid(value, case_sensitive=ctx.columns)
-            new_node = Part(text=value, parent=node.parent)
+            new_node = Part(text=cast(str, value), parent=node.parent)
         elif placeholder_type == PlaceholderType.TABLE:
             _check_valid(value, case_sensitive=ctx.tables)
-            new_node = Part(text=value, parent=node.parent)
+            new_node = Part(text=cast(str, value), parent=node.parent)
         elif placeholder_type == PlaceholderType.LOCK:
             _check_valid(value, case_insensitive={"", "nowait", "skip locked"})
-            new_node = Part(text=value, parent=node.parent)
+            new_node = Part(text=cast(str, value), parent=node.parent)
         else:
             if (
                 value is RewritingValue.IS_NULL or value is RewritingValue.IS_NOT_NULL

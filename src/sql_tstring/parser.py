@@ -3,11 +3,11 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from enum import auto, Enum, unique
-from functools import lru_cache
 from typing import cast
 
+from sql_tstring.t import Interpolation, Template
+
 SPLIT_RE = re.compile(r"([^\s(]+\(|\(|[ ,;)])")
-PLACEHOLDER_RE = re.compile(r"(?<=(?<!\{)\{)[^{}]*(?=\}(?!\}))")
 
 
 @unique
@@ -245,8 +245,8 @@ class Part:
 
 @dataclass
 class Placeholder:
-    name: str
     parent: Expression | Function | Group
+    value: object
 
 
 @dataclass
@@ -271,11 +271,26 @@ class Function:
     parts: list[Function | Group | Part | Placeholder | Statement] = field(default_factory=list)
 
 
-@lru_cache
-def parse_raw(raw: str) -> list[Statement]:
+def parse_template(template: Template) -> list[Statement]:
     statements = [Statement()]
     current_node: Clause | ExpressionGroup | Function | Group | Statement = statements[0]
-    tokens = _tokenise(raw)
+
+    for item in template:
+        match item:
+            case Interpolation(value, _, _, _):
+                _parse_placeholder(value, current_node)  # type: ignore
+            case str() as raw:
+                current_node = _parse_string(raw, current_node, statements)
+
+    return statements
+
+
+def _parse_string(
+    raw: str,
+    current_node: Clause | ExpressionGroup | Function | Group | Statement,
+    statements: list[Statement],
+) -> Clause | ExpressionGroup | Function | Group | Statement:
+    tokens = [part.strip() for part in SPLIT_RE.split(raw) if part.strip() != ""]
     index = 0
     while index < len(tokens):
         raw_current_token = tokens[index]
@@ -302,22 +317,14 @@ def parse_raw(raw: str) -> list[Statement]:
                 current_node = current_node.parent  # type: ignore[assignment]
                 while not isinstance(current_node, (Clause, ExpressionGroup, Function, Group)):
                     current_node = current_node.parent
-            elif (match_ := PLACEHOLDER_RE.search(raw_current_token)) is not None:
-                if isinstance(current_node, Statement):
-                    raise ValueError(f"Syntax error in '{raw}'")
-                _parse_placeholder(match_.group(0), current_node)
             else:
                 if isinstance(current_node, Statement):
                     raise ValueError(f"Syntax error in '{raw}'")
-                _parse_part(raw_current_token.replace("{{", "{").replace("}}", "}"), current_node)
+                _parse_part(raw_current_token, current_node)
 
             index += 1
 
-    return statements
-
-
-def _tokenise(raw: str) -> list[str]:
-    return [part.strip() for part in SPLIT_RE.split(raw) if part.strip() != ""]
+    return current_node
 
 
 def _parse_clause(
@@ -327,7 +334,7 @@ def _parse_clause(
     index = 0
     clause_entry = CLAUSES
     text = ""
-    while tokens[index].lower() in clause_entry:
+    while index < len(tokens) and tokens[index].lower() in clause_entry:
         clause_entry = cast(ClauseDictionary, clause_entry[tokens[index].lower()])
         text = f"{text} {tokens[index]}".strip()
         index += 1
@@ -388,7 +395,7 @@ def _parse_function(
 
 
 def _parse_placeholder(
-    name: str,
+    value: object,
     current_node: Clause | ExpressionGroup | Function | Group,
 ) -> None:
     parent: Expression | Function | Group
@@ -396,7 +403,7 @@ def _parse_placeholder(
         parent = current_node
     else:
         parent = current_node.expressions[-1]
-    placeholder = Placeholder(name=name, parent=parent)
+    placeholder = Placeholder(parent=parent, value=value)
     parent.parts.append(placeholder)
 
 
