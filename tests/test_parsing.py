@@ -72,3 +72,11 @@ def test_subquery() -> None:
         locals(),
     )
     assert query == "SELECT x FROM y JOIN (SELECT z FROM a) ON z = x"
+
+
+def test_functional_subquery() -> None:
+    query, _ = sql(
+        "SELECT x, ARRAY(SELECT a FROM b) FROM y",
+        locals(),
+    )
+    assert query == "SELECT x , ARRAY(SELECT a FROM b) FROM y"
