@@ -20,7 +20,14 @@ from sql_tstring.parser import (
     Statement,
     Value,
 )
-from sql_tstring.t import t
+from sql_tstring.t import t, Template as TTemplate
+
+try:
+    from string.templatelib import Template  # type: ignore[import-untyped]
+except ImportError:
+
+    class Template:  # type: ignore[no-redef]
+        pass
 
 
 @unique
@@ -67,8 +74,18 @@ def sql_context(**kwargs: Any) -> _ContextManager:
     return ctx_manager
 
 
-def sql(query: str, values: dict[str, Any]) -> tuple[str, list]:
-    parsed_queries = parse_template(t(query, values))
+def sql(
+    query_or_template: str | Template | TTemplate, values: dict[str, Any] | None = None
+) -> tuple[str, list]:
+    template: Template
+    if isinstance(query_or_template, (Template, TTemplate)) and values is None:
+        template = query_or_template
+    elif isinstance(query_or_template, str) and values is not None:
+        template = t(query_or_template, values)
+    else:
+        raise ValueError("Must call with a template, or a query string and values")
+
+    parsed_queries = parse_template(template)
     result_str = ""
     result_values: list[Any] = []
     ctx = get_context()

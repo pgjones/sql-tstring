@@ -5,7 +5,10 @@ from dataclasses import dataclass, field
 from enum import auto, Enum, unique
 from typing import cast
 
-from sql_tstring.t import Interpolation, Template
+try:
+    from string.templatelib import Interpolation, Template  # type: ignore[import-untyped]
+except ImportError:
+    from sql_tstring.t import Interpolation, Template
 
 SPLIT_RE = re.compile(r"([^\s(]+\(|\(|'+|[ ',;)])")
 
@@ -283,7 +286,7 @@ def parse_template(template: Template) -> list[Statement]:
 
     for item in template:
         match item:
-            case Interpolation(value, _, _, _):
+            case Interpolation(value, _, _, _):  # type: ignore[misc]
                 _parse_placeholder(value, current_node)  # type: ignore
             case str() as raw:
                 current_node = _parse_string(raw, current_node, statements)

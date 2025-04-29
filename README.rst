@@ -3,7 +3,7 @@ SQL-tString
 
 |Build Status| |pypi| |python| |license|
 
-SQL-tString allows for f-string like construction of sql queries
+SQL-tString allows for t-string based construction of sql queries
 without allowing for SQL injection. The basic usage is as follows,
 
 .. code-block:: python
@@ -13,10 +13,9 @@ without allowing for SQL injection. The basic usage is as follows,
     a = 1
 
     query, values = sql(
-        """SELECT a, b, c
-             FROM tbl
-            WHERE a = {a}""",
-        locals(),
+        t"""SELECT a, b, c
+              FROM tbl
+             WHERE a = {a}""",
     )
 
 The ``query`` is a ``str`` and ``values`` a ``list[Any]``, both are
@@ -37,8 +36,7 @@ column or table names to be used,
 
     with sql_context(columns={"a"}, tables={"tbl"}):
         query, values = sql(
-            "SELECT {col} FROM {table}",
-            locals(),
+            t"SELECT {col} FROM {table}",
         )
 
 If the value of ``col`` or ``table`` does not match the valid values
@@ -59,11 +57,10 @@ useful for optional updates, or conditionals,
     b = Absent
 
     query, values = sql(
-        """UPDATE tbl
-              SET a = {a},
-                  b = 1
-            WHERE b = {b}""",
-        locals(),
+        t"""UPDATE tbl
+               SET a = {a},
+                   b = 1
+             WHERE b = {b}""",
     )
 
 As both ``a`` and ``b`` are ``Absent`` the above ``query`` will be
@@ -74,11 +71,12 @@ In addition for conditionals the values ``IsNull`` (or
 ``RewritingValue.IS_NOT_NULL``) can be used to rewrite the conditional
 as expected. This is useful as ``x = NULL`` is always false in SQL.
 
-t-string (PEP 750)
-------------------
+Pre Python 3.14 usage
+---------------------
 
-If, hopefully, `PEP 750 <https://peps.python.org/pep-0750/>`_ is
-accepted the usage of this library will change to,
+t-strings were introduced in Python 3.14 via, `PEP 750
+<https://peps.python.org/pep-0750/>`_, however this library can be
+used with Python 3.12 and 3.13 as follows,
 
 .. code-block:: python
 
@@ -87,10 +85,14 @@ accepted the usage of this library will change to,
     a = 1
 
     query, values = sql(
-        t"""SELECT a, b, c
-              FROM tbl
-             WHERE a = {a}""",
+        """SELECT a, b, c
+             FROM tbl
+            WHERE a = {a}""",
+        locals(),
     )
+
+Please note though that only simple variable identifiers can be placed
+within the braces.
 
 .. |Build Status| image:: https://github.com/pgjones/sql-tstring/actions/workflows/ci.yml/badge.svg
    :target: https://github.com/pgjones/sql-tstring/commits/main
