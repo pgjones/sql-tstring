@@ -7,7 +7,7 @@ from typing import cast
 
 from sql_tstring.t import Interpolation, Template
 
-SPLIT_RE = re.compile(r"([^\s(]+\(|\(|[ ,;)])")
+SPLIT_RE = re.compile(r"([^\s(]+\(|\(|'+|[ ',;)])")
 
 
 @unique
@@ -230,8 +230,8 @@ class Clause:
 @dataclass
 class Expression:
     parent: Clause | ExpressionGroup
-    parts: list[ExpressionGroup | Function | Group | Part | Placeholder | Statement] = field(
-        default_factory=list
+    parts: list[ExpressionGroup | Function | Group | Part | Placeholder | Statement | Value] = (
+        field(default_factory=list)
     )
     removed: bool = False
     separator: str = ""
@@ -239,13 +239,13 @@ class Expression:
 
 @dataclass
 class Part:
-    parent: Expression | Function | Group
+    parent: Expression | Function | Group | Value
     text: str
 
 
 @dataclass
 class Placeholder:
-    parent: Expression | Function | Group
+    parent: Expression | Function | Group | Value
     value: object
 
 
@@ -269,6 +269,12 @@ class Function:
     name: str
     parent: Expression | Function | Group
     parts: list[Function | Group | Part | Placeholder | Statement] = field(default_factory=list)
+
+
+@dataclass
+class Value:
+    parent: Expression
+    parts: list[Part | Placeholder] = field(default_factory=list)
 
 
 def parse_template(template: Template) -> list[Statement]:
@@ -317,6 +323,18 @@ def _parse_string(
                 current_node = current_node.parent  # type: ignore[assignment]
                 while not isinstance(current_node, (Clause, ExpressionGroup, Function, Group)):
                     current_node = current_node.parent
+            elif current_token == "''":
+                pass
+            elif current_token == "'":
+                if isinstance(current_node, Value):
+                    current_node = current_node.parent  # type: ignore[assignment]
+                elif isinstance(current_node, (Clause, ExpressionGroup)):
+                    parent = current_node.expressions[-1]
+                    value = Value(parent=parent)
+                    parent.parts.append(value)
+                    current_node = value  # type: ignore[assignment]
+                else:
+                    raise ValueError(f"Syntax error in '{raw}'")
             else:
                 if isinstance(current_node, Statement):
                     raise ValueError(f"Syntax error in '{raw}'")
@@ -396,10 +414,10 @@ def _parse_function(
 
 def _parse_placeholder(
     value: object,
-    current_node: Clause | ExpressionGroup | Function | Group,
+    current_node: Clause | ExpressionGroup | Function | Group | Value,
 ) -> None:
-    parent: Expression | Function | Group
-    if isinstance(current_node, (Function, Group)):
+    parent: Expression | Function | Group | Value
+    if isinstance(current_node, (Function, Group, Value)):
         parent = current_node
     else:
         parent = current_node.expressions[-1]
@@ -409,10 +427,10 @@ def _parse_placeholder(
 
 def _parse_part(
     text: str,
-    current_node: Clause | ExpressionGroup | Function | Group,
+    current_node: Clause | ExpressionGroup | Function | Group | Value,
 ) -> None:
-    parent: Expression | Function | Group
-    if isinstance(current_node, (Function, Group)):
+    parent: Expression | Function | Group | Value
+    if isinstance(current_node, (Function, Group, Value)):
         parent = current_node
     else:
         parent = current_node.expressions[-1]

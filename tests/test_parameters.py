@@ -51,6 +51,11 @@ TZ = "uk"
             [2],
         ),
         (
+            "SELECT x FROM y WHERE x LIKE '%{col}'",
+            "SELECT x FROM y WHERE x LIKE ?",
+            ["%col"],
+        ),
+        (
             "INSERT INTO y (x) VALUES (2) ON CONFLICT DO UPDATE SET x = {val}",
             "INSERT INTO y (x) VALUES (2) ON CONFLICT DO UPDATE SET x = ?",
             [2],
@@ -110,6 +115,11 @@ def test_placeholders(query: str, expected_query: str, expected_values: list[Any
         ),
         (
             "SELECT x FROM y ORDER BY ARRAY_POSITION({val}, x)",
+            "SELECT x FROM y",
+            [],
+        ),
+        (
+            "SELECT x FROM y WHERE x LIKE '%{val}'",
             "SELECT x FROM y",
             [],
         ),

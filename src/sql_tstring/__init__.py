@@ -18,6 +18,7 @@ from sql_tstring.parser import (
     Placeholder,
     PlaceholderType,
     Statement,
+    Value,
 )
 from sql_tstring.t import t
 
@@ -117,7 +118,17 @@ def _check_valid(
 
 
 def _print_node(
-    node: Clause | Expression | ExpressionGroup | Function | Group | Part | Placeholder | Statement,
+    node: (
+        Clause
+        | Expression
+        | ExpressionGroup
+        | Function
+        | Group
+        | Part
+        | Placeholder
+        | Statement
+        | Value
+    ),
     placeholders: list | None = None,
     dialect: str = "sql",
 ) -> str:
@@ -167,12 +178,25 @@ def _print_node(
         case Placeholder():
             placeholders.append(None)
             result = f"${len(placeholders)}" if dialect == "asyncpg" else "?"
+        case Value():
+            value = "".join(_print_node(part, placeholders, dialect) for part in node.parts)
+            result = f"'{value}'"
 
     return result.strip()
 
 
 def _replace_placeholders(
-    node: Clause | Expression | ExpressionGroup | Function | Group | Part | Placeholder | Statement,
+    node: (
+        Clause
+        | Expression
+        | ExpressionGroup
+        | Function
+        | Group
+        | Part
+        | Placeholder
+        | Statement
+        | Value
+    ),
     index: int,
 ) -> list[Any]:
     result = []
@@ -183,7 +207,7 @@ def _replace_placeholders(
         case Clause() | ExpressionGroup():
             for index, expression_ in enumerate(node.expressions):
                 result.extend(_replace_placeholders(expression_, index))
-        case Expression() | Function() | Group():
+        case Expression() | Function() | Group() | Value():
             for index, part in enumerate(node.parts):
                 result.extend(_replace_placeholders(part, index))
         case Placeholder():
@@ -224,6 +248,22 @@ def _replace_placeholder(
                 expression = expression.parent
 
             expression.removed = True
+    elif isinstance(node.parent, Value):
+        if not isinstance(value, str):
+            raise RuntimeError("Invalid placeholder usage")
+        else:
+            for position, part in enumerate(node.parent.parent.parts):
+                if part is node.parent:
+                    value = ""
+                    for bit in part.parts:  # type: ignore[union-attr]
+                        if isinstance(bit, Placeholder):
+                            value += str(bit.value)
+                        else:
+                            value += bit.text  # type: ignore[union-attr]
+                    node.parent.parent.parts[position] = Placeholder(
+                        parent=part.parent, value=value  # type: ignore[arg-type]
+                    )
+                    result.append(value)
     else:
         if clause is not None and clause.text.lower() == "order by":
             _check_valid(
