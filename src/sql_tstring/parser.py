@@ -10,7 +10,7 @@ try:
 except ImportError:
     from sql_tstring.t import Interpolation, Template
 
-SPLIT_RE = re.compile(r"([^\s(]+\(|\(|'+|[ ',;)])")
+SPLIT_RE = re.compile(r"([^\s(]+\(|\(|'+|[ ',;)\n\t])")
 
 
 @unique

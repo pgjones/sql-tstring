@@ -11,6 +11,15 @@ def test_quoted() -> None:
     assert query == 'SELECT "x" FROM "y"'
 
 
+def test_whitespace() -> None:
+    query, _ = sql(
+        """SELECT
+"x" FROM	"y" """,
+        locals(),
+    )
+    assert query == 'SELECT "x" FROM "y"'
+
+
 def test_delete_from() -> None:
     query, _ = sql("DELETE FROM y WHERE x = 'NONE'", locals())
     assert query == "DELETE FROM y WHERE x = 'NONE'"
