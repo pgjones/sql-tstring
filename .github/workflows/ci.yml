@@ -19,10 +19,10 @@ jobs:
         include:
           - {name: '3.13', python: '3.13', tox: py313}
           - {name: '3.12', python: '3.12', tox: py312}
-          - {name: 'format', python: '3.12', tox: format}
-          - {name: 'mypy', python: '3.12', tox: mypy}
-          - {name: 'pep8', python: '3.12', tox: pep8}
-          - {name: 'package', python: '3.12', tox: package}
+          - {name: 'format', python: '3.13', tox: format}
+          - {name: 'mypy', python: '3.13', tox: mypy}
+          - {name: 'pep8', python: '3.13', tox: pep8}
+          - {name: 'package', python: '3.13', tox: package}
 
     steps:
       - uses: actions/checkout@v3
