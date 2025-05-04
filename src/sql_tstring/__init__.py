@@ -66,11 +66,19 @@ def set_context(context: Context) -> None:
     _context_var.set(context)
 
 
-def sql_context(**kwargs: typing.Any) -> _ContextManager:
+def sql_context(
+    columns: set[typing.LiteralString] | None = None,
+    dialect: typing.Literal["asyncpg", "sql"] | None = None,
+    tables: set[typing.LiteralString] | None = None,
+) -> _ContextManager:
     ctx = get_context()
     ctx_manager = _ContextManager(ctx)
-    for key, value in kwargs.items():
-        setattr(ctx_manager._context, key, value)
+    if columns is not None:
+        ctx_manager._context.columns = columns
+    if dialect is not None:
+        ctx_manager._context.dialect = dialect
+    if tables is not None:
+        ctx_manager._context.tables = tables
     return ctx_manager
 
 
