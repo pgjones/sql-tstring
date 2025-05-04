@@ -233,7 +233,7 @@ class Clause:
 @dataclass
 class Expression:
     parent: Clause | ExpressionGroup
-    parts: list[ExpressionGroup | Function | Group | Part | Placeholder | Statement | Value] = (
+    parts: list[ExpressionGroup | Function | Group | Part | Placeholder | Statement | Literal] = (
         field(default_factory=list)
     )
     removed: bool = False
@@ -242,13 +242,13 @@ class Expression:
 
 @dataclass
 class Part:
-    parent: Expression | Function | Group | Value
+    parent: Expression | Function | Group | Literal
     text: str
 
 
 @dataclass
 class Placeholder:
-    parent: Expression | Function | Group | Value
+    parent: Expression | Function | Group | Literal
     value: object
 
 
@@ -275,7 +275,7 @@ class Function:
 
 
 @dataclass
-class Value:
+class Literal:
     parent: Expression
     parts: list[Part | Placeholder] = field(default_factory=list)
 
@@ -329,11 +329,11 @@ def _parse_string(
             elif current_token == "''":
                 pass
             elif current_token == "'":
-                if isinstance(current_node, Value):
+                if isinstance(current_node, Literal):
                     current_node = current_node.parent  # type: ignore[assignment]
                 elif isinstance(current_node, (Clause, ExpressionGroup)):
                     parent = current_node.expressions[-1]
-                    value = Value(parent=parent)
+                    value = Literal(parent=parent)
                     parent.parts.append(value)
                     current_node = value  # type: ignore[assignment]
                 else:
@@ -417,10 +417,10 @@ def _parse_function(
 
 def _parse_placeholder(
     value: object,
-    current_node: Clause | ExpressionGroup | Function | Group | Value,
+    current_node: Clause | ExpressionGroup | Function | Group | Literal,
 ) -> None:
-    parent: Expression | Function | Group | Value
-    if isinstance(current_node, (Function, Group, Value)):
+    parent: Expression | Function | Group | Literal
+    if isinstance(current_node, (Function, Group, Literal)):
         parent = current_node
     else:
         parent = current_node.expressions[-1]
@@ -430,10 +430,10 @@ def _parse_placeholder(
 
 def _parse_part(
     text: str,
-    current_node: Clause | ExpressionGroup | Function | Group | Value,
+    current_node: Clause | ExpressionGroup | Function | Group | Literal,
 ) -> None:
-    parent: Expression | Function | Group | Value
-    if isinstance(current_node, (Function, Group, Value)):
+    parent: Expression | Function | Group | Literal
+    if isinstance(current_node, (Function, Group, Literal)):
         parent = current_node
     else:
         parent = current_node.expressions[-1]

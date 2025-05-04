@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import typing
 from contextvars import ContextVar
 from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from enum import auto, Enum, unique
 from types import TracebackType
-from typing import Any, cast, Literal
 
 from sql_tstring.parser import (
     Clause,
@@ -13,12 +13,12 @@ from sql_tstring.parser import (
     ExpressionGroup,
     Function,
     Group,
+    Literal,
     parse_template,
     Part,
     Placeholder,
     PlaceholderType,
     Statement,
-    Value,
 )
 from sql_tstring.t import t, Template as TTemplate
 
@@ -37,7 +37,7 @@ class RewritingValue(Enum):
     IS_NOT_NULL = auto()
 
 
-type AbsentType = Literal[RewritingValue.ABSENT]
+type AbsentType = typing.Literal[RewritingValue.ABSENT]
 Absent: AbsentType = RewritingValue.ABSENT
 IsNull = RewritingValue.IS_NULL
 IsNotNull = RewritingValue.IS_NOT_NULL
@@ -46,7 +46,7 @@ IsNotNull = RewritingValue.IS_NOT_NULL
 @dataclass
 class Context:
     columns: set[str] = field(default_factory=set)
-    dialect: Literal["asyncpg", "sql"] = "sql"
+    dialect: typing.Literal["asyncpg", "sql"] = "sql"
     tables: set[str] = field(default_factory=set)
 
 
@@ -66,7 +66,7 @@ def set_context(context: Context) -> None:
     _context_var.set(context)
 
 
-def sql_context(**kwargs: Any) -> _ContextManager:
+def sql_context(**kwargs: typing.Any) -> _ContextManager:
     ctx = get_context()
     ctx_manager = _ContextManager(ctx)
     for key, value in kwargs.items():
@@ -75,7 +75,7 @@ def sql_context(**kwargs: Any) -> _ContextManager:
 
 
 def sql(
-    query_or_template: str | Template | TTemplate, values: dict[str, Any] | None = None
+    query_or_template: str | Template | TTemplate, values: dict[str, typing.Any] | None = None
 ) -> tuple[str, list]:
     template: Template
     if isinstance(query_or_template, (Template, TTemplate)) and values is None:
@@ -87,7 +87,7 @@ def sql(
 
     parsed_queries = parse_template(template)
     result_str = ""
-    result_values: list[Any] = []
+    result_values: list[typing.Any] = []
     ctx = get_context()
     for raw_parsed_query in parsed_queries:
         parsed_query = deepcopy(raw_parsed_query)
@@ -144,7 +144,7 @@ def _print_node(
         | Part
         | Placeholder
         | Statement
-        | Value
+        | Literal
     ),
     placeholders: list | None = None,
     dialect: str = "sql",
@@ -195,7 +195,7 @@ def _print_node(
         case Placeholder():
             placeholders.append(None)
             result = f"${len(placeholders)}" if dialect == "asyncpg" else "?"
-        case Value():
+        case Literal():
             value = "".join(_print_node(part, placeholders, dialect) for part in node.parts)
             result = f"'{value}'"
 
@@ -212,10 +212,10 @@ def _replace_placeholders(
         | Part
         | Placeholder
         | Statement
-        | Value
+        | Literal
     ),
     index: int,
-) -> list[Any]:
+) -> list[typing.Any]:
     result = []
     match node:
         case Statement():
@@ -224,7 +224,7 @@ def _replace_placeholders(
         case Clause() | ExpressionGroup():
             for index, expression_ in enumerate(node.expressions):
                 result.extend(_replace_placeholders(expression_, index))
-        case Expression() | Function() | Group() | Value():
+        case Expression() | Function() | Group() | Literal():
             for index, part in enumerate(node.parts):
                 result.extend(_replace_placeholders(part, index))
         case Placeholder():
@@ -236,7 +236,7 @@ def _replace_placeholders(
 def _replace_placeholder(
     node: Placeholder,
     index: int,
-) -> list[Any]:
+) -> list[typing.Any]:
     result = []
     ctx = get_context()
 
@@ -265,7 +265,7 @@ def _replace_placeholder(
                 expression = expression.parent
 
             expression.removed = True
-    elif isinstance(node.parent, Value):
+    elif isinstance(node.parent, Literal):
         if not isinstance(value, str):
             raise RuntimeError("Invalid placeholder usage")
         else:
@@ -288,16 +288,16 @@ def _replace_placeholder(
                 case_sensitive=ctx.columns,
                 case_insensitive={"asc", "ascending", "desc", "descending"},
             )
-            new_node = Part(text=cast(str, value), parent=node.parent)
+            new_node = Part(text=typing.cast(str, value), parent=node.parent)
         elif placeholder_type == PlaceholderType.COLUMN:
             _check_valid(value, case_sensitive=ctx.columns)
-            new_node = Part(text=cast(str, value), parent=node.parent)
+            new_node = Part(text=typing.cast(str, value), parent=node.parent)
         elif placeholder_type == PlaceholderType.TABLE:
             _check_valid(value, case_sensitive=ctx.tables)
-            new_node = Part(text=cast(str, value), parent=node.parent)
+            new_node = Part(text=typing.cast(str, value), parent=node.parent)
         elif placeholder_type == PlaceholderType.LOCK:
             _check_valid(value, case_insensitive={"", "nowait", "skip locked"})
-            new_node = Part(text=cast(str, value), parent=node.parent)
+            new_node = Part(text=typing.cast(str, value), parent=node.parent)
         else:
             if (
                 value is RewritingValue.IS_NULL or value is RewritingValue.IS_NOT_NULL
