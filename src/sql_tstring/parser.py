@@ -10,7 +10,7 @@ try:
 except ImportError:
     from sql_tstring.t import Interpolation, Template
 
-SPLIT_RE = re.compile(r"([^\s(]+\(|\(|'+|[ ',;)\n\t])")
+SPLIT_RE = re.compile(r"([^\s'(]+\(|\(|'+|[ ',;)\n\t])")
 
 
 @unique
@@ -255,7 +255,9 @@ class Placeholder:
 @dataclass
 class Group:
     parent: Expression | Function | Group
-    parts: list[Function | Group | Part | Placeholder | Statement] = field(default_factory=list)
+    parts: list[Function | Group | Literal | Part | Placeholder | Statement] = field(
+        default_factory=list
+    )
 
 
 @dataclass
@@ -271,86 +273,143 @@ class ExpressionGroup:
 class Function:
     name: str
     parent: Expression | Function | Group
-    parts: list[Function | Group | Part | Placeholder | Statement] = field(default_factory=list)
+    parts: list[Function | Group | Literal | Part | Placeholder | Statement] = field(
+        default_factory=list
+    )
 
 
 @dataclass
 class Literal:
-    parent: Expression
+    parent: Expression | Function | Group
     parts: list[Part | Placeholder] = field(default_factory=list)
+
+
+type ParentNode = Clause | Expression | ExpressionGroup | Function | Group
+type Node = ParentNode | Literal | Statement
+type Element = Node | Part | Placeholder
 
 
 def parse_template(template: Template) -> list[Statement]:
     statements = [Statement()]
-    current_node: Clause | ExpressionGroup | Function | Group | Statement = statements[0]
+    current_node: Node = statements[0]
 
     for item in template:
         match item:
             case Interpolation(value, _, _, _):  # type: ignore[misc]
-                _parse_placeholder(value, current_node)  # type: ignore
+                _parse_placeholder(current_node, value)
             case str() as raw:
                 current_node = _parse_string(raw, current_node, statements)
 
     return statements
 
 
+def _parse_placeholder(
+    current_node: Node,
+    value: object,
+) -> None:
+    if isinstance(current_node, (Expression, Function, Group, Literal)):
+        parent = current_node
+    elif isinstance(current_node, Statement):
+        raise ValueError("Invalid syntax")
+    else:  # Clause | ExpressionGroup
+        parent = current_node.expressions[-1]
+    placeholder = Placeholder(parent=parent, value=value)
+    parent.parts.append(placeholder)
+
+
 def _parse_string(
     raw: str,
-    current_node: Clause | ExpressionGroup | Function | Group | Statement,
+    current_node: Node,
     statements: list[Statement],
-) -> Clause | ExpressionGroup | Function | Group | Statement:
+) -> Node:
     tokens = [part.strip() for part in SPLIT_RE.split(raw) if part.strip() != ""]
     index = 0
     while index < len(tokens):
         raw_current_token = tokens[index]
         current_token = raw_current_token.lower()
-        if current_token in CLAUSES:
-            current_node, consumed = _parse_clause(tokens[index:], current_node)
-            index += consumed
-        else:
-            if current_token == ";":
-                current_node = Statement()
-                statements.append(current_node)
-            elif current_token == "(":
-                if isinstance(current_node, Statement):
-                    raise ValueError(f"Syntax error in '{raw}'")
-                current_node = _parse_group(current_node)
-            elif current_token.endswith("("):
-                if isinstance(current_node, Statement):
-                    raise ValueError(f"Syntax error in '{raw}'")
-                current_node = _parse_function(raw_current_token[:-1], current_node)
-            elif current_token == ")":
-                while not isinstance(current_node, (ExpressionGroup, Function, Group)):
-                    current_node = current_node.parent
 
-                current_node = current_node.parent  # type: ignore[assignment]
-                while not isinstance(current_node, (Clause, ExpressionGroup, Function, Group)):
-                    current_node = current_node.parent
-            elif current_token == "''":
-                pass
-            elif current_token == "'":
-                if isinstance(current_node, Literal):
-                    current_node = current_node.parent  # type: ignore[assignment]
-                elif isinstance(current_node, (Clause, ExpressionGroup)):
-                    parent = current_node.expressions[-1]
-                    value = Literal(parent=parent)
-                    parent.parts.append(value)
-                    current_node = value  # type: ignore[assignment]
-                else:
-                    raise ValueError(f"Syntax error in '{raw}'")
+        consumed = 1
+        if isinstance(current_node, Literal):
+            if current_token == "'":
+                current_node = current_node.parent
             else:
-                if isinstance(current_node, Statement):
-                    raise ValueError(f"Syntax error in '{raw}'")
-                _parse_part(raw_current_token, current_node)
+                current_node.parts.append(Part(parent=current_node, text=raw_current_token))
+        elif isinstance(current_node, (Function, Group)):
+            if current_token == ")":
+                group_or_function = _find_node(current_node, (Function, Group))
+                current_node = group_or_function.parent
+            else:
+                current_node, consumed = _parse_token(
+                    current_node, raw_current_token, current_token, tokens[index:], statements
+                )
+        elif isinstance(current_node, ExpressionGroup):
+            if current_token == ")":
+                group = _find_node(current_node, ExpressionGroup)
+                current_node = group.parent
+            else:
+                clause = _find_node(current_node, Clause)
+                if current_token in clause.properties.separators:
+                    current_node.expressions.append(
+                        Expression(parent=current_node, separator=raw_current_token)
+                    )
+                else:
+                    current_node, consumed = _parse_token(
+                        current_node, raw_current_token, current_token, tokens[index:], statements
+                    )
+        elif isinstance(current_node, Clause):
+            if current_token in current_node.properties.separators:
+                current_node.expressions.append(
+                    Expression(parent=current_node, separator=raw_current_token)
+                )
+            else:
+                current_node, consumed = _parse_token(
+                    current_node, raw_current_token, current_token, tokens[index:], statements
+                )
+        else:  # Expression | Statement
+            current_node, consumed = _parse_token(
+                current_node, raw_current_token, current_token, tokens[index:], statements
+            )
 
-            index += 1
+        index += consumed
 
     return current_node
 
 
-def _parse_clause(
+def _parse_token(
+    current_node: ParentNode | Statement,
+    raw_current_token: str,
+    current_token: str,
     tokens: list[str],
-    current_node: Clause | ExpressionGroup | Function | Group | Statement,
+    statements: list[Statement],
+) -> tuple[Node, int]:
+    if current_token in CLAUSES:
+        return _parse_clause(current_node, tokens)
+    elif current_token == ";":
+        statements.append(Statement())
+        return statements[-1], 1
+    elif not isinstance(current_node, Statement):
+        if current_token == "''":
+            return _parse_part(current_node, "''")
+        elif current_token == "'":
+            return _parse_literal(current_node)
+        elif current_token == "(":
+            return _parse_group(current_node)
+        elif current_token.endswith("("):
+            return _parse_function(current_node, raw_current_token[:-1])
+        elif current_token == ")":
+            current_node = _find_node(  # type: ignore[assignment]
+                current_node, (ExpressionGroup, Function, Group)
+            )
+            return current_node.parent, 1
+        else:
+            return _parse_part(current_node, raw_current_token)
+    else:
+        raise ValueError("Invalid syntax")
+
+
+def _parse_clause(
+    current_node: ParentNode | Statement,
+    tokens: list[str],
 ) -> tuple[Clause, int]:
     index = 0
     clause_entry = CLAUSES
@@ -368,9 +427,8 @@ def _parse_clause(
         statement = Statement(parent=current_node)
         current_node.expressions[-1].parts.append(statement)
         current_node = statement
-
-    while not isinstance(current_node, Statement):
-        current_node = current_node.parent
+    else:  # Clause | Expression | Statement
+        current_node = _find_node(current_node, Statement)
 
     clause_properties = cast(ClauseProperties, clause_entry[""])
     clause = Clause(
@@ -384,68 +442,63 @@ def _parse_clause(
 
 
 def _parse_group(
-    current_node: Clause | ExpressionGroup | Function | Group,
-) -> ExpressionGroup | Group:
+    current_node: ParentNode,
+) -> tuple[ExpressionGroup | Group, int]:
     group: ExpressionGroup | Group
-    if isinstance(current_node, (Function, Group)):
+    if isinstance(current_node, (Expression, Function, Group)):
         group = Group(parent=current_node)
         current_node.parts.append(group)
-        return group
-    else:
+        return group, 1
+    else:  # Clause | ExpressionGroup
         parent = current_node.expressions[-1]
         if len(parent.parts) == 0:
             group = ExpressionGroup(parent=parent)
         else:
             group = Group(parent=parent)
         parent.parts.append(group)
-        return group
+        return group, 1
 
 
 def _parse_function(
+    current_node: ParentNode,
     name: str,
-    current_node: Clause | ExpressionGroup | Function | Group,
-) -> Function:
-    parent: Expression | Function | Group
-    if isinstance(current_node, (Function, Group)):
+) -> tuple[Function, int]:
+    if isinstance(current_node, (Expression, Function, Group)):
         parent = current_node
-    else:
+    else:  # Clause | ExpressionGroup
         parent = current_node.expressions[-1]
     func = Function(name=name, parent=parent)
     parent.parts.append(func)
-    return func
+    return func, 1
 
 
-def _parse_placeholder(
-    value: object,
-    current_node: Clause | ExpressionGroup | Function | Group | Literal,
-) -> None:
-    parent: Expression | Function | Group | Literal
-    if isinstance(current_node, (Function, Group, Literal)):
-        parent = current_node
-    else:
+def _parse_literal(current_node: ParentNode) -> tuple[Literal, int]:
+    if isinstance(current_node, (Expression, Function, Group)):
+        value = Literal(parent=current_node)
+        current_node.parts.append(value)
+        return value, 1
+    else:  # Clause | ExpressionGroup
         parent = current_node.expressions[-1]
-    placeholder = Placeholder(parent=parent, value=value)
-    parent.parts.append(placeholder)
+        value = Literal(parent=parent)
+        parent.parts.append(value)
+        return value, 1
 
 
-def _parse_part(
+def _parse_part[T: ParentNode](
+    current_node: T,
     text: str,
-    current_node: Clause | ExpressionGroup | Function | Group | Literal,
-) -> None:
-    parent: Expression | Function | Group | Literal
-    if isinstance(current_node, (Function, Group, Literal)):
+) -> tuple[T, int]:
+    if isinstance(current_node, (Expression, Function, Group)):
         parent = current_node
-    else:
+    else:  # Clause | ExpressionGroup
         parent = current_node.expressions[-1]
-    part = Part(parent=parent, text=text)
-    if isinstance(current_node, (Clause, ExpressionGroup)):
-        clause = current_node
-        while not isinstance(clause, Clause):
-            clause = clause.parent  # type: ignore
+    parent.parts.append(Part(parent=parent, text=text))
+    return current_node, 1
 
-        if text.lower() in clause.properties.separators:
-            current_node.expressions.append(Expression(parent=current_node, separator=text))
-        else:
-            parent.parts.append(part)
-    else:
-        parent.parts.append(part)
+
+def _find_node[T: Element](current_node: Element, target: type[T] | tuple[type[T], ...]) -> T:
+    while not isinstance(current_node, target):
+        if current_node is None:
+            raise ValueError("Parsing Error")
+        current_node = current_node.parent
+    return cast(T, current_node)

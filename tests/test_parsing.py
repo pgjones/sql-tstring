@@ -2,8 +2,13 @@ from sql_tstring import sql
 
 
 def test_literals() -> None:
-    query, _ = sql("SELECT x FROM y WHERE x = 'NONE'", locals())
-    assert query == "SELECT x FROM y WHERE x = 'NONE'"
+    query, _ = sql("SELECT x FROM y WHERE x = 'NONE' AND y = 'FUNC_LIKE('", locals())
+    assert query == "SELECT x FROM y WHERE x = 'NONE' AND y = 'FUNC_LIKE('"
+
+
+def test_function_literals() -> None:
+    query, _ = sql("SELECT COALESCE(x, 'a') FROM y WHERE x = 'NONE'", locals())
+    assert query == "SELECT COALESCE(x , 'a') FROM y WHERE x = 'NONE'"
 
 
 def test_quoted() -> None:
