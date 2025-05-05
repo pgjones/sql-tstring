@@ -388,9 +388,7 @@ def _parse_token(
         statements.append(Statement())
         return statements[-1], 1
     elif not isinstance(current_node, Statement):
-        if current_token == "''":
-            return _parse_part(current_node, "''")
-        elif current_token == "'":
+        if current_token == "'":
             return _parse_literal(current_node)
         elif current_token == "(":
             return _parse_group(current_node)

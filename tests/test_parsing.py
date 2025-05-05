@@ -11,6 +11,11 @@ def test_function_literals() -> None:
     assert query == "SELECT COALESCE(x , 'a') FROM y WHERE x = 'NONE'"
 
 
+def test_literal_quote() -> None:
+    query, _ = sql("SELECT x FROM y WHERE x = 'AB''C'", locals())
+    assert query == "SELECT x FROM y WHERE x = 'AB''C'"
+
+
 def test_quoted() -> None:
     query, _ = sql('SELECT "x" FROM "y"', locals())
     assert query == 'SELECT "x" FROM "y"'
