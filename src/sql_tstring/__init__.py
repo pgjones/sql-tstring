@@ -9,11 +9,13 @@ from types import TracebackType
 
 from sql_tstring.parser import (
     Clause,
+    Element,
     Expression,
     ExpressionGroup,
     Function,
     Group,
     Literal,
+    Operator,
     parse_template,
     Part,
     Placeholder,
@@ -143,17 +145,7 @@ def _check_valid(
 
 
 def _print_node(
-    node: (
-        Clause
-        | Expression
-        | ExpressionGroup
-        | Function
-        | Group
-        | Part
-        | Placeholder
-        | Statement
-        | Literal
-    ),
+    node: Element,
     placeholders: list | None = None,
     dialect: str = "sql",
 ) -> str:
@@ -198,6 +190,8 @@ def _print_node(
             result = (
                 f"({" ".join(_print_node(part, placeholders, dialect) for part in node.parts)})"
             )
+        case Operator():
+            result = node.text
         case Part():
             result = node.text
         case Placeholder():
@@ -211,17 +205,7 @@ def _print_node(
 
 
 def _replace_placeholders(
-    node: (
-        Clause
-        | Expression
-        | ExpressionGroup
-        | Function
-        | Group
-        | Part
-        | Placeholder
-        | Statement
-        | Literal
-    ),
+    node: Element,
     index: int,
 ) -> list[typing.Any]:
     result = []
@@ -311,7 +295,7 @@ def _replace_placeholder(
                 value is RewritingValue.IS_NULL or value is RewritingValue.IS_NOT_NULL
             ) and placeholder_type == PlaceholderType.VARIABLE_CONDITION:
                 for part in node.parent.parts:
-                    if isinstance(part, Part) and part.text in {"=", "!=", "<>"}:
+                    if isinstance(part, Operator):
                         if value is RewritingValue.IS_NULL:
                             part.text = "IS"
                         else:

@@ -211,6 +211,34 @@ CLAUSES: ClauseDictionary = {
     },
 }
 
+OPERATORS: dict[str, dict] = {
+    "=": {},
+    "<>": {},
+    "!=": {},
+    ">": {},
+    "<": {},
+    ">=": {},
+    "<=": {},
+    "between": {},
+    "ilike": {},
+    "in": {},
+    "is": {
+        "not": {
+            "null": {},
+            "true": {},
+        },
+        "null": {},
+        "true": {},
+    },
+    "like": {},
+    "not": {
+        "between": {},
+        "ilike": {},
+        "in": {},
+        "like": {},
+    },
+}
+
 
 @dataclass
 class Statement:
@@ -233,9 +261,9 @@ class Clause:
 @dataclass
 class Expression:
     parent: Clause | ExpressionGroup
-    parts: list[ExpressionGroup | Function | Group | Part | Placeholder | Statement | Literal] = (
-        field(default_factory=list)
-    )
+    parts: list[
+        ExpressionGroup | Function | Group | Operator | Part | Placeholder | Statement | Literal
+    ] = field(default_factory=list)
     removed: bool = False
     separator: str = ""
 
@@ -255,7 +283,7 @@ class Placeholder:
 @dataclass
 class Group:
     parent: Expression | Function | Group
-    parts: list[Function | Group | Literal | Part | Placeholder | Statement] = field(
+    parts: list[Function | Group | Literal | Operator | Part | Placeholder | Statement] = field(
         default_factory=list
     )
 
@@ -273,7 +301,7 @@ class ExpressionGroup:
 class Function:
     name: str
     parent: Expression | Function | Group
-    parts: list[Function | Group | Literal | Part | Placeholder | Statement] = field(
+    parts: list[Function | Group | Literal | Operator | Part | Placeholder | Statement] = field(
         default_factory=list
     )
 
@@ -281,12 +309,18 @@ class Function:
 @dataclass
 class Literal:
     parent: Expression | Function | Group
-    parts: list[Part | Placeholder] = field(default_factory=list)
+    parts: list[Operator | Part | Placeholder] = field(default_factory=list)
+
+
+@dataclass
+class Operator:
+    parent: Expression | Function | Group | Literal
+    text: str
 
 
 type ParentNode = Clause | Expression | ExpressionGroup | Function | Group
 type Node = ParentNode | Literal | Statement
-type Element = Node | Part | Placeholder
+type Element = Node | Operator | Part | Placeholder
 
 
 def parse_template(template: Template) -> list[Statement]:
@@ -388,7 +422,9 @@ def _parse_token(
         statements.append(Statement())
         return statements[-1], 1
     elif not isinstance(current_node, Statement):
-        if current_token == "'":
+        if current_token in OPERATORS:
+            return _parse_operator(current_node, tokens)
+        elif current_token == "'":
             return _parse_literal(current_node)
         elif current_token == "(":
             return _parse_group(current_node)
@@ -435,7 +471,25 @@ def _parse_clause(
         text=text,
     )
     current_node.clauses.append(clause)
-    current_node = clause
+    return clause, index
+
+
+def _parse_operator[T: ParentNode](
+    current_node: T,
+    tokens: list[str],
+) -> tuple[T, int]:
+    index = 0
+    operator_entry = OPERATORS
+    text = ""
+    while index < len(tokens) and tokens[index].lower() in operator_entry:
+        operator_entry = operator_entry[tokens[index].lower()]
+        text = f"{text} {tokens[index]}".strip()
+        index += 1
+    if isinstance(current_node, (Expression, Function, Group)):
+        parent = current_node
+    else:  # Clause | ExpressionGroup
+        parent = current_node.expressions[-1]
+    parent.parts.append(Operator(parent=parent, text=text))
     return current_node, index
 
 
