@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 from enum import auto, Enum, unique
 from typing import cast
 
+from sql_tstring.t import Template as TTemplate
+
 try:
     from string.templatelib import Interpolation, Template  # type: ignore[import-untyped]
 except ImportError:
@@ -323,18 +325,23 @@ type Node = ParentNode | Literal | Statement
 type Element = Node | Operator | Part | Placeholder
 
 
-def parse_template(template: Template) -> list[Statement]:
+def parse(template: Template) -> list[Statement]:
     statements = [Statement()]
     current_node: Node = statements[0]
+    _parse_template(template, current_node, statements)
+    return statements
 
+
+def _parse_template(template: Template, current_node: Node, statements: list[Statement]) -> None:
     for item in template:
         match item:
             case Interpolation(value, _, _, _):  # type: ignore[misc]
-                _parse_placeholder(current_node, value)
+                if isinstance(value, (Template, TTemplate)):
+                    _parse_template(value, current_node, statements)
+                else:
+                    _parse_placeholder(current_node, value)
             case str() as raw:
                 current_node = _parse_string(raw, current_node, statements)
-
-    return statements
 
 
 def _parse_placeholder(

@@ -1,4 +1,4 @@
-from sql_tstring import sql
+from sql_tstring import sql, t
 
 
 def test_literals() -> None:
@@ -35,7 +35,7 @@ def test_delete_from() -> None:
     assert query == "DELETE FROM y WHERE x = 'NONE'"
 
 
-def test_nested() -> None:
+def test_function() -> None:
     query, _ = sql("SELECT COALESCE(x, now())", locals())
     assert query == "SELECT COALESCE(x , now())"
 
@@ -99,3 +99,9 @@ def test_functional_subquery() -> None:
         locals(),
     )
     assert query == "SELECT x , ARRAY(SELECT a FROM b) FROM y"
+
+
+def test_nested() -> None:
+    inner = t("x = 'a'", locals())
+    query, _ = sql("SELECT x FROM y WHERE {inner}", locals())
+    assert query == "SELECT x FROM y WHERE x = 'a'"

@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 
-from sql_tstring import RewritingValue, sql, sql_context
+from sql_tstring import RewritingValue, sql, sql_context, t
 
 TZ = "uk"
 
@@ -178,3 +178,11 @@ def test_is_null(query: str, expected_query: str, expected_values: list[Any]) ->
 def test_is_not_null(query: str, expected_query: str, expected_values: list[Any]) -> None:
     val = RewritingValue.IS_NOT_NULL
     assert (expected_query, expected_values) == sql(query, locals())
+
+
+def test_nested() -> None:
+    a = "a"
+    inner = t("x = {a}", locals())
+    query, values = sql("SELECT x FROM y WHERE {inner}", locals())
+    assert query == "SELECT x FROM y WHERE x = ?"
+    assert values == ["a"]

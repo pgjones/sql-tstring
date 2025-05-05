@@ -16,7 +16,7 @@ from sql_tstring.parser import (
     Group,
     Literal,
     Operator,
-    parse_template,
+    parse,
     Part,
     Placeholder,
     PlaceholderType,
@@ -95,7 +95,7 @@ def sql(
     else:
         raise ValueError("Must call with a template, or a query string and values")
 
-    parsed_queries = parse_template(template)
+    parsed_queries = parse(template)
     result_str = ""
     result_values: list[typing.Any] = []
     ctx = get_context()
