@@ -71,6 +71,20 @@ In addition for conditionals the values ``IsNull`` (or
 ``RewritingValue.IS_NOT_NULL``) can be used to rewrite the conditional
 as expected. This is useful as ``x = NULL`` is always false in SQL.
 
+Paramstyle (dialect)
+--------------------
+
+By default SQL-tString uses the ``qmark`` `paramstyle
+<https://peps.python.org/pep-0249/#paramstyle>`_ (dialect) but also
+supports the ``$`` paramstyle or asyncpg dialect. This is best changed
+globally via,
+
+.. code-block:: python
+
+    from sql_tstring import Context, set_context
+
+    set_context(Context(dialect="asyncpg"))
+
 Pre Python 3.14 usage
 ---------------------
 
