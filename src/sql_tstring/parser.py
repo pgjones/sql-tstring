@@ -406,7 +406,19 @@ def _parse_string(
                 current_node, consumed = _parse_token(
                     current_node, raw_current_token, current_token, tokens[index:], statements
                 )
-        else:  # Expression | Statement
+        elif isinstance(current_node, Expression):
+            clause = _find_node(current_node, Clause)
+            if current_token in clause.properties.separators:
+                parent_group = cast(
+                    Clause | ExpressionGroup, _find_node(current_node, (Clause, ExpressionGroup))
+                )
+                current_node = Expression(parent=parent_group, separator=raw_current_token)
+                parent_group.expressions.append(current_node)
+            else:
+                current_node, consumed = _parse_token(
+                    current_node, raw_current_token, current_token, tokens[index:], statements
+                )
+        else:  # Statement
             current_node, consumed = _parse_token(
                 current_node, raw_current_token, current_token, tokens[index:], statements
             )

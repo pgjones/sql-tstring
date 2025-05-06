@@ -133,6 +133,16 @@ def test_placeholders(query: str, expected_query: str, expected_values: list[Any
             "INSERT INTO y (x) VALUES (DEFAULT)",
             [],
         ),
+        (
+            "SELECT x FROM y WHERE x = ANY('{{1}}') AND y = {val}",
+            "SELECT x FROM y WHERE x = ANY('{1}')",
+            [],
+        ),
+        (
+            "SELECT x FROM y WHERE x = 1 AND y = {val}",
+            "SELECT x FROM y WHERE x = 1",
+            [],
+        ),
     ],
 )
 def test_absent(query: str, expected_query: str, expected_values: list[Any]) -> None:
