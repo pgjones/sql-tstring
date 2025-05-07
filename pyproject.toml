@@ -17,7 +17,7 @@ classifiers = [
 ]
 include = ["src/sql_tstring/py.typed"]
 license = "MIT"
-license-files = "LICENSE"
+license-files = ["LICENSE"]
 readme = "README.rst"
 repository = "https://github.com/pgjones/sql-tstring/"
 dependencies = []
