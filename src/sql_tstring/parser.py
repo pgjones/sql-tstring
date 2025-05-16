@@ -372,13 +372,17 @@ def _parse_string(
         consumed = 1
         if isinstance(current_node, Literal):
             if current_token == "'":
-                current_node = current_node.parent
+                current_node = _find_node(  # type: ignore[assignment]
+                    current_node.parent, (Clause, ExpressionGroup, Function, Group)
+                )
             else:
                 current_node.parts.append(Part(parent=current_node, text=raw_current_token))
         elif isinstance(current_node, (Function, Group)):
             if current_token == ")":
                 group_or_function = _find_node(current_node, (Function, Group))
-                current_node = group_or_function.parent
+                current_node = _find_node(  # type: ignore[assignment]
+                    group_or_function.parent, (Clause, ExpressionGroup, Function, Group)
+                )
             else:
                 current_node, consumed = _parse_token(
                     current_node, raw_current_token, current_token, tokens[index:], statements
@@ -386,7 +390,9 @@ def _parse_string(
         elif isinstance(current_node, ExpressionGroup):
             if current_token == ")":
                 group = _find_node(current_node, ExpressionGroup)
-                current_node = group.parent
+                current_node = _find_node(  # type: ignore[assignment]
+                    group.parent, (Clause, ExpressionGroup)
+                )
             else:
                 clause = _find_node(current_node, Clause)
                 if current_token in clause.properties.separators:

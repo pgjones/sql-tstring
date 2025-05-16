@@ -163,6 +163,11 @@ def test_absent(query: str, expected_query: str, expected_values: list[Any]) -> 
             "SELECT x FROM y WHERE x IS NULL",
             [],
         ),
+        (
+            "SELECT x FROM y WHERE a = ANY(a) AND ((x = '1' AND b = {val}) OR c = 1)",
+            "SELECT x FROM y WHERE a = ANY(a) AND ((x = '1' AND b IS NULL) OR c = 1)",
+            [],
+        ),
     ],
 )
 def test_is_null(query: str, expected_query: str, expected_values: list[Any]) -> None:
