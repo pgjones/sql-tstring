@@ -19,7 +19,9 @@ SPLIT_RE = re.compile(r"([^\s'(]+\(|\(|'+|[ ',;)\n\t])")
 class PlaceholderType(Enum):
     COLUMN = auto()
     DISALLOWED = auto()
+    FRAME = auto()
     LOCK = auto()
+    SORT = auto()
     TABLE = auto()
     VARIABLE = auto()
     VARIABLE_CONDITION = auto()
@@ -119,6 +121,13 @@ CLAUSES: ClauseDictionary = {
     "order": {
         "by": {
             "": ClauseProperties(
+                allow_empty=False, placeholder_type=PlaceholderType.SORT, separators={","}
+            )
+        },
+    },
+    "partition": {
+        "by": {
+            "": ClauseProperties(
                 allow_empty=False, placeholder_type=PlaceholderType.COLUMN, separators={","}
             )
         },
@@ -152,6 +161,11 @@ CLAUSES: ClauseDictionary = {
             allow_empty=False, placeholder_type=PlaceholderType.TABLE, separators=set()
         )
     },
+    "groups": {
+        "": ClauseProperties(
+            allow_empty=False, placeholder_type=PlaceholderType.FRAME, separators=set()
+        )
+    },
     "having": {
         "": ClauseProperties(
             allow_empty=False,
@@ -172,9 +186,19 @@ CLAUSES: ClauseDictionary = {
             allow_empty=False, placeholder_type=PlaceholderType.VARIABLE, separators=set()
         )
     },
+    "range": {
+        "": ClauseProperties(
+            allow_empty=False, placeholder_type=PlaceholderType.FRAME, separators=set()
+        )
+    },
     "returning": {
         "": ClauseProperties(
             allow_empty=False, placeholder_type=PlaceholderType.DISALLOWED, separators={","}
+        )
+    },
+    "rows": {
+        "": ClauseProperties(
+            allow_empty=False, placeholder_type=PlaceholderType.FRAME, separators=set()
         )
     },
     "select": {

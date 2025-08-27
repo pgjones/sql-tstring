@@ -131,12 +131,15 @@ def _check_valid(
     *,
     case_sensitive: set[str] | None = None,
     case_insensitive: set[str] | None = None,
+    value_type: type = str,
 ) -> None:
     if case_sensitive is None:
         case_sensitive = set()
     if case_insensitive is None:
         case_insensitive = set()
-    if not isinstance(value, str) or (
+    if not isinstance(value, value_type):
+        raise ValueError(f"{value} is not valid, must be {value_type}")
+    if isinstance(value, str) and (
         value not in case_sensitive and value.lower() not in case_insensitive
     ):
         raise ValueError(
@@ -274,36 +277,40 @@ def _replace_placeholder(
                     )
                     result.append(value)
     else:
-        if clause is not None and clause.text.lower() == "order by":
-            _check_valid(
-                value,
-                case_sensitive=ctx.columns,
-                case_insensitive={"asc", "ascending", "desc", "descending"},
-            )
-            new_node = Part(text=typing.cast(str, value), parent=node.parent)
-        elif placeholder_type == PlaceholderType.COLUMN:
-            _check_valid(value, case_sensitive=ctx.columns)
-            new_node = Part(text=typing.cast(str, value), parent=node.parent)
-        elif placeholder_type == PlaceholderType.TABLE:
-            _check_valid(value, case_sensitive=ctx.tables)
-            new_node = Part(text=typing.cast(str, value), parent=node.parent)
-        elif placeholder_type == PlaceholderType.LOCK:
-            _check_valid(value, case_insensitive={"", "nowait", "skip locked"})
-            new_node = Part(text=typing.cast(str, value), parent=node.parent)
-        else:
-            if (
-                value is RewritingValue.IS_NULL or value is RewritingValue.IS_NOT_NULL
-            ) and placeholder_type == PlaceholderType.VARIABLE_CONDITION:
-                for part in node.parent.parts:
-                    if isinstance(part, Operator):
-                        if value is RewritingValue.IS_NULL:
-                            part.text = "IS"
-                        else:
-                            part.text = "IS NOT"
-                new_node = Part(text="NULL", parent=node.parent)
-            else:
-                new_node = node
-                result.append(value)
+        match placeholder_type:
+            case PlaceholderType.COLUMN:
+                _check_valid(value, case_sensitive=ctx.columns)
+                new_node = Part(text=typing.cast(str, value), parent=node.parent)
+            case PlaceholderType.FRAME:
+                _check_valid(value, value_type=int)
+                new_node = Part(text=str(value), parent=node.parent)
+            case PlaceholderType.LOCK:
+                _check_valid(value, case_insensitive={"", "nowait", "skip locked"})
+                new_node = Part(text=typing.cast(str, value), parent=node.parent)
+            case PlaceholderType.SORT:
+                _check_valid(
+                    value,
+                    case_sensitive=ctx.columns,
+                    case_insensitive={"asc", "ascending", "desc", "descending"},
+                )
+                new_node = Part(text=typing.cast(str, value), parent=node.parent)
+            case PlaceholderType.TABLE:
+                _check_valid(value, case_sensitive=ctx.tables)
+                new_node = Part(text=typing.cast(str, value), parent=node.parent)
+            case _:
+                if (
+                    value is RewritingValue.IS_NULL or value is RewritingValue.IS_NOT_NULL
+                ) and placeholder_type == PlaceholderType.VARIABLE_CONDITION:
+                    for part in node.parent.parts:
+                        if isinstance(part, Operator):
+                            if value is RewritingValue.IS_NULL:
+                                part.text = "IS"
+                            else:
+                                part.text = "IS NOT"
+                    new_node = Part(text="NULL", parent=node.parent)
+                else:
+                    new_node = node
+                    result.append(value)
 
         if isinstance(node.parent, (Expression, ExpressionGroup, Function, Group)):
             node.parent.parts[index] = new_node
