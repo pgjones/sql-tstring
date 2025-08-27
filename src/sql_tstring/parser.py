@@ -513,7 +513,7 @@ def _parse_operator[T: ParentNode](
     if isinstance(current_node, (Expression, Function, Group)):
         parent = current_node
     else:  # Clause | ExpressionGroup
-        parent = current_node.expressions[-1]
+        parent = current_node.expressions[-1]  # type: ignore[assignment]
     parent.parts.append(Operator(parent=parent, text=text))
     return current_node, index
 
@@ -568,7 +568,7 @@ def _parse_part[T: ParentNode](
     if isinstance(current_node, (Expression, Function, Group)):
         parent = current_node
     else:  # Clause | ExpressionGroup
-        parent = current_node.expressions[-1]
+        parent = current_node.expressions[-1]  # type: ignore[assignment]
     parent.parts.append(Part(parent=parent, text=text))
     return current_node, 1
 
