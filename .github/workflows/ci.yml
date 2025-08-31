@@ -20,10 +20,10 @@ jobs:
           - {name: '3.14', python: '3.14-rc', tox: py314}
           - {name: '3.13', python: '3.13', tox: py313}
           - {name: '3.12', python: '3.12', tox: py312}
-          - {name: 'format', python: '3.13', tox: format}
-          - {name: 'mypy', python: '3.13', tox: mypy}
-          - {name: 'pep8', python: '3.13', tox: pep8}
-          - {name: 'package', python: '3.13', tox: package}
+          - {name: 'format', python: '3.14-rc', tox: format}
+          - {name: 'mypy', python: '3.14-rc', tox: mypy}
+          - {name: 'pep8', python: '3.14-rc', tox: pep8}
+          - {name: 'package', python: '3.14-rc', tox: package}
 
     steps:
       - uses: actions/checkout@v4
