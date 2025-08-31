@@ -17,6 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - {name: '3.14', python: '3.14-rc', tox: py314}
           - {name: '3.13', python: '3.13', tox: py313}
           - {name: '3.12', python: '3.12', tox: py312}
           - {name: 'format', python: '3.13', tox: format}
