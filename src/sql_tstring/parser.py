@@ -5,12 +5,18 @@ from dataclasses import dataclass, field
 from enum import auto, Enum, unique
 from typing import cast
 
-from sql_tstring.t import Template as TTemplate
+from sql_tstring.t import Interpolation as TInterpolation, Template as TTemplate
 
 try:
     from string.templatelib import Interpolation, Template  # type: ignore[import-untyped]
 except ImportError:
-    from sql_tstring.t import Interpolation, Template
+
+    class Interpolation:  # type: ignore[no-redef]
+        pass
+
+    class Template:  # type: ignore[no-redef]
+        pass
+
 
 SPLIT_RE = re.compile(r"([^\s'(]+\(|\(|'+|[ ',;)\n\t])")
 
@@ -360,6 +366,11 @@ def _parse_template(template: Template, current_node: Node, statements: list[Sta
     for item in template:
         match item:
             case Interpolation(value, _, _, _):  # type: ignore[misc]
+                if isinstance(value, (Template, TTemplate)):
+                    _parse_template(value, current_node, statements)
+                else:
+                    _parse_placeholder(current_node, value)
+            case TInterpolation(value, _, _, _):
                 if isinstance(value, (Template, TTemplate)):
                     _parse_template(value, current_node, statements)
                 else:
