@@ -362,7 +362,9 @@ def parse(template: Template | TTemplate) -> list[Statement]:
     return statements
 
 
-def _parse_template(template: Template | TTemplate, current_node: Node, statements: list[Statement]) -> None:
+def _parse_template(
+    template: Template | TTemplate, current_node: Node, statements: list[Statement]
+) -> None:
     for item in template:
         match item:
             case Interpolation(value, _, _, _):
