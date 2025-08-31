@@ -25,7 +25,7 @@ from sql_tstring.parser import (
 from sql_tstring.t import t, Template as TTemplate
 
 try:
-    from string.templatelib import Template  # type: ignore[import-untyped]
+    from string.templatelib import Template
 except ImportError:
 
     class Template:  # type: ignore[no-redef]
@@ -87,7 +87,7 @@ def sql_context(
 def sql(
     query_or_template: str | Template | TTemplate, values: dict[str, typing.Any] | None = None
 ) -> tuple[str, list]:
-    template: Template
+    template: Template | TTemplate
     if isinstance(query_or_template, (Template, TTemplate)) and values is None:
         template = query_or_template
     elif isinstance(query_or_template, str) and values is not None:

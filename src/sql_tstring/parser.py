@@ -8,7 +8,7 @@ from typing import cast
 from sql_tstring.t import Interpolation as TInterpolation, Template as TTemplate
 
 try:
-    from string.templatelib import Interpolation, Template  # type: ignore[import-untyped]
+    from string.templatelib import Interpolation, Template
 except ImportError:
 
     class Interpolation:  # type: ignore[no-redef]
@@ -355,17 +355,17 @@ type Node = ParentNode | Literal | Statement
 type Element = Node | Operator | Part | Placeholder
 
 
-def parse(template: Template) -> list[Statement]:
+def parse(template: Template | TTemplate) -> list[Statement]:
     statements = [Statement()]
     current_node: Node = statements[0]
     _parse_template(template, current_node, statements)
     return statements
 
 
-def _parse_template(template: Template, current_node: Node, statements: list[Statement]) -> None:
+def _parse_template(template: Template | TTemplate, current_node: Node, statements: list[Statement]) -> None:
     for item in template:
         match item:
-            case Interpolation(value, _, _, _):  # type: ignore[misc]
+            case Interpolation(value, _, _, _):
                 if isinstance(value, (Template, TTemplate)):
                     _parse_template(value, current_node, statements)
                 else:
