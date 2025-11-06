@@ -105,3 +105,8 @@ def test_nested() -> None:
     inner = t("x = 'a'", locals())
     query, _ = sql("SELECT x FROM y WHERE {inner}", locals())
     assert query == "SELECT x FROM y WHERE x = 'a'"
+
+
+def test_opening_parenthesis() -> None:
+    query, _ = sql("(SELECT x FROM y) UNION ALL (SELECT z FROM y)", locals())
+    assert query == "(SELECT x FROM y) UNION ALL (SELECT z FROM y)"
