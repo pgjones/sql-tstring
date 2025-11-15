@@ -9,7 +9,6 @@ from types import TracebackType
 
 from sql_tstring.parser import (
     Clause,
-    ClauseGroup,
     Element,
     Expression,
     ExpressionGroup,
@@ -103,10 +102,10 @@ def sql(
     for raw_parsed_query in parsed_queries:
         parsed_query = deepcopy(raw_parsed_query)
         new_values = _replace_placeholders(parsed_query, 0)
-        result_str += " " + _print_node(parsed_query, [None] * len(result_values), ctx.dialect)
+        result_str += _print_node(parsed_query, [None] * len(result_values), ctx.dialect)
         result_values.extend(new_values)
 
-    return result_str.strip(), result_values
+    return result_str, result_values
 
 
 class _ContextManager:
@@ -158,12 +157,7 @@ def _print_node(
 
     match node:
         case Statement():
-            addition = " ".join(
-                _print_node(clause, placeholders, dialect) for clause in node.clauses
-            )
-            result = f"{node.separator} {addition}"
-        case ClauseGroup():
-            result = f"({" ".join(_print_node(clause, placeholders, dialect) for clause in node.clauses)})"  # noqa: E501
+            result = " ".join(_print_node(clause, placeholders, dialect) for clause in node.clauses)
         case Clause() | ExpressionGroup():
             result = ""
 
@@ -261,7 +255,9 @@ def _replace_placeholder(
             if clause is not None:
                 clause.removed = True
         else:
-            expression = node.parent
+            expression: Expression | ExpressionGroup | Function | Group | Literal | Statement = (
+                node.parent
+            )
             while not isinstance(expression, Expression):
                 expression = expression.parent
 

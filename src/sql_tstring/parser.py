@@ -217,6 +217,16 @@ CLAUSES: ClauseDictionary = {
             allow_empty=False, placeholder_type=PlaceholderType.VARIABLE, separators={","}
         )
     },
+    "union": {
+        "": ClauseProperties(
+            allow_empty=True, placeholder_type=PlaceholderType.DISALLOWED, separators=set()
+        ),
+        "all": {
+            "": ClauseProperties(
+                allow_empty=True, placeholder_type=PlaceholderType.DISALLOWED, separators=set()
+            )
+        },
+    },
     "update": {
         "": ClauseProperties(
             allow_empty=False, placeholder_type=PlaceholderType.DISALLOWED, separators=set()
@@ -274,14 +284,13 @@ OPERATORS: dict[str, dict] = {
 
 @dataclass
 class Statement:
-    clauses: list[Clause | ClauseGroup] = field(default_factory=list)
+    clauses: list[Clause | Group] = field(default_factory=list)
     parent: ExpressionGroup | Function | Group | None = None
-    separator: str = ""
 
 
 @dataclass
 class Clause:
-    parent: ClauseGroup | Statement
+    parent: Statement
     properties: ClauseProperties
     text: str
     expressions: list[Expression] = field(init=False)
@@ -289,12 +298,6 @@ class Clause:
 
     def __post_init__(self) -> None:
         self.expressions = [Expression(self)]
-
-
-@dataclass
-class ClauseGroup:
-    parent: Statement
-    clauses: list[Clause] = field(default_factory=list)
 
 
 @dataclass
@@ -321,7 +324,7 @@ class Placeholder:
 
 @dataclass
 class Group:
-    parent: Expression | Function | Group
+    parent: Expression | Function | Group | Statement
     parts: list[Function | Group | Literal | Operator | Part | Placeholder | Statement] = field(
         default_factory=list
     )
@@ -358,7 +361,7 @@ class Operator:
 
 
 type ParentNode = Clause | Expression | ExpressionGroup | Function | Group
-type Node = ParentNode | ClauseGroup | Literal | Statement
+type Node = ParentNode | Literal | Statement
 type Element = Node | Operator | Part | Placeholder
 
 
@@ -394,7 +397,7 @@ def _parse_placeholder(
 ) -> None:
     if isinstance(current_node, (Expression, Function, Group, Literal)):
         parent = current_node
-    elif isinstance(current_node, (Statement, ClauseGroup)):
+    elif isinstance(current_node, Statement):
         raise ValueError("Invalid syntax")
     else:  # Clause | ExpressionGroup
         parent = current_node.expressions[-1]
@@ -468,7 +471,7 @@ def _parse_string(
                 current_node, consumed = _parse_token(
                     current_node, raw_current_token, current_token, tokens[index:], statements
                 )
-        else:  # ClauseGroup | Statement
+        else:  # Statement
             current_node, consumed = _parse_token(
                 current_node, raw_current_token, current_token, tokens[index:], statements
             )
@@ -479,7 +482,7 @@ def _parse_string(
 
 
 def _parse_token(
-    current_node: ParentNode | ClauseGroup | Statement,
+    current_node: ParentNode | Statement,
     raw_current_token: str,
     current_token: str,
     tokens: list[str],
@@ -489,17 +492,10 @@ def _parse_token(
         return _parse_clause(current_node, tokens)
     elif current_token == ";":
         statements.append(Statement())
-        statements[-1].separator = ";"
         return statements[-1], 1
-    elif current_token == "union":
-        statements.append(Statement())
-        statements[-1].separator = raw_current_token
-        consumed = 1
-        if tokens[1].lower() == "all":
-            statements[-1].separator += f" {tokens[1]}"
-            consumed = 2
-        return statements[-1], consumed
-    elif not isinstance(current_node, (ClauseGroup, Statement)):
+    elif current_token == "(":
+        return _parse_group(current_node)
+    elif not isinstance(current_node, Statement):
         if current_token in OPERATORS:
             return _parse_operator(current_node, tokens)
         elif current_token == "'":
@@ -510,21 +506,17 @@ def _parse_token(
             return _parse_function(current_node, raw_current_token[:-1])
         elif current_token == ")":
             current_node = _find_node(  # type: ignore[assignment]
-                current_node, (ExpressionGroup, Function, Group, ClauseGroup)
+                current_node, (ExpressionGroup, Function, Group)
             )
             return current_node.parent, 1
         else:
             return _parse_part(current_node, raw_current_token)
-    elif isinstance(current_node, Statement) and current_token == "(":
-        statement_group = ClauseGroup(current_node)
-        current_node.clauses.append(statement_group)
-        return statement_group, 1
     else:
         raise ValueError("Invalid syntax")
 
 
 def _parse_clause(
-    current_node: ParentNode | ClauseGroup | Statement,
+    current_node: ParentNode | Statement,
     tokens: list[str],
 ) -> tuple[Clause, int]:
     index = 0
@@ -543,16 +535,16 @@ def _parse_clause(
         statement = Statement(parent=current_node)
         current_node.expressions[-1].parts.append(statement)
         current_node = statement
-    else:  # Clause | Expression | Statement | ClauseGroup
-        current_node = _find_node(current_node, (Statement, ClauseGroup))  # type: ignore[assignment] # noqa: E501
+    else:  # Clause | Expression | Statement
+        current_node = _find_node(current_node, Statement)
 
     clause_properties = cast(ClauseProperties, clause_entry[""])
     clause = Clause(
-        parent=current_node,  # type: ignore[arg-type]
+        parent=current_node,
         properties=clause_properties,
         text=text,
     )
-    current_node.clauses.append(clause)  # type: ignore[union-attr]
+    current_node.clauses.append(clause)
     return clause, index
 
 
@@ -576,12 +568,16 @@ def _parse_operator[T: ParentNode](
 
 
 def _parse_group(
-    current_node: ParentNode,
+    current_node: ParentNode | Statement,
 ) -> tuple[ExpressionGroup | Group, int]:
     group: ExpressionGroup | Group
     if isinstance(current_node, (Expression, Function, Group)):
         group = Group(parent=current_node)
         current_node.parts.append(group)
+        return group, 1
+    elif isinstance(current_node, Statement):
+        group = Group(parent=current_node)
+        current_node.clauses.append(group)
         return group, 1
     else:  # Clause | ExpressionGroup
         parent = current_node.expressions[-1]

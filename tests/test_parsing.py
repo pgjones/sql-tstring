@@ -59,6 +59,20 @@ def test_cte() -> None:
     )
 
 
+def test_cte_union() -> None:
+    query, _ = sql(
+        """WITH cte AS (SELECT DISTINCT x FROM y UNION SELECT a FROM b)
+         SELECT DISTINCT x
+           FROM z
+          WHERE x NOT IN (SELECT a FROM b)""",
+        locals(),
+    )
+    assert (
+        query
+        == """WITH cte AS (SELECT DISTINCT x FROM y UNION SELECT a FROM b) SELECT DISTINCT x FROM z WHERE x NOT IN (SELECT a FROM b)"""  # noqa: E501
+    )
+
+
 def test_with_conflict() -> None:
     a = "A"
     b = "B"

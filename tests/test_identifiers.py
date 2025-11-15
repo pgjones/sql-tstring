@@ -70,6 +70,14 @@ def test_frame_clause_invalid(frame_clause: str) -> None:
         sql(f"SELECT x OVER(PARTITION BY x {frame_clause} {{b}} PRECEDING) FROM y", locals())
 
 
+@pytest.mark.xfail
+def test_over_clause() -> None:
+    a = 2
+    assert ("SELECT AVG(x) OVER y - (2 / 365) FROM x", []) == sql(
+        "SELECT AVG(x) OVER y - ({a} / 365) FROM x", locals()
+    )
+
+
 @pytest.mark.parametrize(
     "lock_type, expected",
     (
