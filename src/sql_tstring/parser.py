@@ -410,7 +410,14 @@ def _parse_string(
     current_node: Node,
     statements: list[Statement],
 ) -> Node:
-    tokens = [part.strip() for part in SPLIT_RE.split(raw) if part.strip() != ""]
+    tokens = []
+    for part in SPLIT_RE.split(raw):
+        if part == "":
+            continue
+        elif part.strip() == "":
+            tokens.append(part)
+        else:
+            tokens.append(part.strip())
     index = 0
     while index < len(tokens):
         raw_current_token = tokens[index]
@@ -424,6 +431,8 @@ def _parse_string(
                 )
             else:
                 current_node.parts.append(Part(parent=current_node, text=raw_current_token))
+        elif raw_current_token.strip() == "":
+            consumed = 1
         elif isinstance(current_node, (Function, Group)):
             if current_token == ")":
                 group_or_function = _find_node(current_node, (Function, Group))
@@ -522,9 +531,12 @@ def _parse_clause(
     index = 0
     clause_entry = CLAUSES
     text = ""
-    while index < len(tokens) and tokens[index].lower() in clause_entry:
-        clause_entry = cast(ClauseDictionary, clause_entry[tokens[index].lower()])
-        text = f"{text} {tokens[index]}".strip()
+    while index < len(tokens) and (
+        tokens[index].strip() == "" or tokens[index].lower() in clause_entry
+    ):
+        if tokens[index].strip() != "":
+            clause_entry = cast(ClauseDictionary, clause_entry[tokens[index].lower()])
+            text = f"{text} {tokens[index]}".strip()
         index += 1
 
     if isinstance(current_node, (Function, Group)):

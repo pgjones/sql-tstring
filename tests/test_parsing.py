@@ -124,3 +124,13 @@ def test_nested() -> None:
 def test_opening_parenthesis() -> None:
     query, _ = sql("(SELECT x FROM y) UNION ALL (SELECT z FROM y)", locals())
     assert query == "(SELECT x FROM y) UNION ALL (SELECT z FROM y)"
+
+
+def test_literal() -> None:
+    query, _ = sql("SELECT 'ABC DEF' FROM y", locals())
+    assert query == "SELECT 'ABC DEF' FROM y"
+
+
+def test_identifier() -> None:
+    query, _ = sql("""SELECT "ABC DEF" FROM y""", locals())
+    assert query == """SELECT "ABC DEF" FROM y"""

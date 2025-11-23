@@ -151,6 +151,7 @@ def _print_node(
     node: Element,
     placeholders: list | None = None,
     dialect: str = "sql",
+    strip: bool = True,
 ) -> str:
     if placeholders is None:
         placeholders = []
@@ -201,10 +202,13 @@ def _print_node(
             placeholders.append(None)
             result = f"${len(placeholders)}" if dialect == "asyncpg" else "?"
         case Literal():
-            value = "".join(_print_node(part, placeholders, dialect) for part in node.parts)
+            value = "".join(_print_node(part, placeholders, dialect, False) for part in node.parts)
             result = f"'{value}'"
 
-    return result.strip()
+    if strip:
+        return result.strip()
+    else:
+        return result
 
 
 def _replace_placeholders(
