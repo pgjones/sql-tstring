@@ -31,6 +31,20 @@ def test_order_by_invalid_column() -> None:
         sql("SELECT x FROM y ORDER BY {a}, {b}", locals())
 
 
+def test_numeric() -> None:
+    a = 1
+    with sql_context(allow_numeric=True):
+        query, values = sql("SELECT {a}", locals())
+    assert query == "SELECT 1"
+    assert values == []
+
+
+def test_numeric_invalid() -> None:
+    a = 1
+    with pytest.raises(ValueError):
+        sql("SELECT {a}", locals())
+
+
 def test_partition_by() -> None:
     a = RewritingValue.ABSENT
     b = "x"

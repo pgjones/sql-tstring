@@ -5,6 +5,7 @@ from contextvars import ContextVar
 from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from enum import auto, Enum, unique
+from numbers import Number
 from types import TracebackType
 
 from sql_tstring.parser import (
@@ -47,6 +48,7 @@ IsNotNull = RewritingValue.IS_NOT_NULL
 
 @dataclass
 class Context:
+    allow_numeric: bool = False
     columns: set[str] = field(default_factory=set)
     dialect: typing.Literal["asyncpg", "sql"] = "sql"
     tables: set[str] = field(default_factory=set)
@@ -72,9 +74,13 @@ def sql_context(
     columns: set[typing.LiteralString] | None = None,
     dialect: typing.Literal["asyncpg", "sql"] | None = None,
     tables: set[typing.LiteralString] | None = None,
+    *,
+    allow_numeric: bool | None = None,
 ) -> _ContextManager:
     ctx = get_context()
     ctx_manager = _ContextManager(ctx)
+    if allow_numeric is not None:
+        ctx_manager._context.allow_numeric = allow_numeric
     if columns is not None:
         ctx_manager._context.columns = columns
     if dialect is not None:
@@ -126,17 +132,24 @@ class _ContextManager:
         set_context(self._original_context)
 
 
-def _check_valid(
+def _safely_convert_placeholder_value(
     value: object,
     *,
+    allow_numeric: bool = False,
     case_sensitive: set[str] | None = None,
     case_insensitive: set[str] | None = None,
     value_type: type = str,
-) -> None:
+) -> str:
     if case_sensitive is None:
         case_sensitive = set()
     if case_insensitive is None:
         case_insensitive = set()
+
+    if isinstance(value, bool):
+        return str(value)
+    if allow_numeric and isinstance(value, Number):
+        return str(value)
+
     if not isinstance(value, value_type):
         raise ValueError(f"{value} is not valid, must be {value_type}")
     if isinstance(value, str) and (
@@ -145,6 +158,7 @@ def _check_valid(
         raise ValueError(
             f"{value} is not valid, must be one of {case_sensitive} or {case_insensitive}"
         )
+    return str(value)
 
 
 def _print_node(
@@ -285,24 +299,31 @@ def _replace_placeholder(
     else:
         match placeholder_type:
             case PlaceholderType.COLUMN:
-                _check_valid(value, case_sensitive=ctx.columns)
-                new_node = Part(text=typing.cast(str, value), parent=node.parent)
+                text = _safely_convert_placeholder_value(
+                    value, allow_numeric=ctx.allow_numeric, case_sensitive=ctx.columns
+                )
+                new_node = Part(text=text, parent=node.parent)
             case PlaceholderType.FRAME:
-                _check_valid(value, value_type=int)
-                new_node = Part(text=str(value), parent=node.parent)
+                text = _safely_convert_placeholder_value(value, value_type=int)
+                new_node = Part(text=text, parent=node.parent)
             case PlaceholderType.LOCK:
-                _check_valid(value, case_insensitive={"", "nowait", "skip locked"})
-                new_node = Part(text=typing.cast(str, value), parent=node.parent)
+                text = _safely_convert_placeholder_value(
+                    value, case_insensitive={"", "nowait", "skip locked"}
+                )
+                new_node = Part(text=text, parent=node.parent)
             case PlaceholderType.SORT:
-                _check_valid(
+                text = _safely_convert_placeholder_value(
                     value,
+                    allow_numeric=ctx.allow_numeric,
                     case_sensitive=ctx.columns,
                     case_insensitive={"asc", "ascending", "desc", "descending"},
                 )
-                new_node = Part(text=typing.cast(str, value), parent=node.parent)
+                new_node = Part(text=text, parent=node.parent)
             case PlaceholderType.TABLE:
-                _check_valid(value, case_sensitive=ctx.tables)
-                new_node = Part(text=typing.cast(str, value), parent=node.parent)
+                text = _safely_convert_placeholder_value(
+                    value, allow_numeric=ctx.allow_numeric, case_sensitive=ctx.tables
+                )
+                new_node = Part(text=text, parent=node.parent)
             case _:
                 if (
                     value is RewritingValue.IS_NULL or value is RewritingValue.IS_NOT_NULL
