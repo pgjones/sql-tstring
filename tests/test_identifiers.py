@@ -45,6 +45,13 @@ def test_numeric_invalid() -> None:
         sql("SELECT {a}", locals())
 
 
+def test_none() -> None:
+    a = None
+    query, values = sql("SELECT {a}", locals())
+    assert query == "SELECT NULL"
+    assert values == []
+
+
 def test_partition_by() -> None:
     a = RewritingValue.ABSENT
     b = "x"

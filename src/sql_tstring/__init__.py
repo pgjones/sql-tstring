@@ -145,6 +145,8 @@ def _safely_convert_placeholder_value(
     if case_insensitive is None:
         case_insensitive = set()
 
+    if value is None:
+        return "NULL"
     if isinstance(value, bool):
         return str(value)
     if allow_numeric and isinstance(value, Number):
