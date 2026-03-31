@@ -289,13 +289,13 @@ def _replace_placeholder(
             for position, part in enumerate(node.parent.parent.parts):
                 if part is node.parent:
                     value = ""
-                    for bit in part.parts:  # type: ignore[union-attr]
+                    for bit in part.parts:
                         if isinstance(bit, Placeholder):
                             value += str(bit.value)
                         else:
-                            value += bit.text  # type: ignore[union-attr]
+                            value += bit.text
                     node.parent.parent.parts[position] = Placeholder(
-                        parent=part.parent, value=value  # type: ignore[arg-type]
+                        parent=part.parent, value=value
                     )
                     result.append(value)
     else:
@@ -339,7 +339,7 @@ def _replace_placeholder(
                     new_node = Part(text="NULL", parent=node.parent)
                 else:
                     new_node = node
-                    result.append(value)
+                    result.append(value)  # type: ignore[arg-type]
 
         if isinstance(node.parent, (Expression, ExpressionGroup, Function, Group)):
             node.parent.parts[index] = new_node
