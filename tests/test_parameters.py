@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 
-from sql_tstring import RewritingValue, sql, sql_context, t
+from sql_tstring import LiteralValue, RewritingValue, sql, sql_context, t
 
 TZ = "uk"
 
@@ -68,6 +68,19 @@ def test_placeholders(query: str, expected_query: str, expected_values: list[Any
     val = 2
     with sql_context(columns={"col"}, tables={"tbl"}):
         assert (expected_query, expected_values) == sql(query, locals() | globals())
+
+
+def test_literal_value() -> None:
+    col = "col"
+    a = "L1"
+    al = LiteralValue("L2")
+    b = LiteralValue(None)
+    c = LiteralValue(1)
+    d = LiteralValue(True)
+    with sql_context(allow_numeric=True, columns={"col"}):
+        query, values = sql("SELECT {col}, '{a}', {al}, {b}, {c}, {d}", locals())
+    assert query == "SELECT col , ? , ? , NULL , 1 , True"
+    assert values == ["L1", "L2"]
 
 
 @pytest.mark.parametrize(

@@ -40,6 +40,11 @@ class RewritingValue(Enum):
     IS_NOT_NULL = auto()
 
 
+class LiteralValue:
+    def __init__(self, value: typing.Any) -> None:
+        self.value = value
+
+
 type AbsentType = typing.Literal[RewritingValue.ABSENT]
 Absent: AbsentType = RewritingValue.ABSENT
 IsNull = RewritingValue.IS_NULL
@@ -135,32 +140,42 @@ class _ContextManager:
 def _safely_convert_placeholder_value(
     value: object,
     *,
+    parent_node: Expression | Function | Group | Literal,
     allow_numeric: bool = False,
     case_sensitive: set[str] | None = None,
     case_insensitive: set[str] | None = None,
     value_type: type = str,
-) -> str:
-    if case_sensitive is None:
-        case_sensitive = set()
-    if case_insensitive is None:
-        case_insensitive = set()
+) -> Part | Placeholder:
+    if isinstance(value, LiteralValue):
+        if value.value is None:
+            return Part(text="NULL", parent=parent_node)
+        elif isinstance(value.value, bool) or (allow_numeric and isinstance(value.value, Number)):
+            return Part(text=str(value.value), parent=parent_node)
+        else:
+            return Placeholder(parent=parent_node, value=value.value)
+    else:
+        if case_sensitive is None:
+            case_sensitive = set()
+        if case_insensitive is None:
+            case_insensitive = set()
 
-    if value is None:
-        return "NULL"
-    if isinstance(value, bool):
-        return str(value)
-    if allow_numeric and isinstance(value, Number):
-        return str(value)
-
-    if not isinstance(value, value_type):
-        raise ValueError(f"{value} is not valid, must be {value_type}")
-    if isinstance(value, str) and (
-        value not in case_sensitive and value.lower() not in case_insensitive
-    ):
-        raise ValueError(
-            f"{value} is not valid, must be one of {case_sensitive} or {case_insensitive}"
-        )
-    return str(value)
+        if value is None:
+            text = "NULL"
+        elif isinstance(value, bool):
+            text = str(value)
+        elif allow_numeric and isinstance(value, Number):
+            text = str(value)
+        elif not isinstance(value, value_type):
+            raise ValueError(f"{value} is not valid, must be {value_type}")
+        elif isinstance(value, str) and (
+            value not in case_sensitive and value.lower() not in case_insensitive
+        ):
+            raise ValueError(
+                f"{value} is not valid, must be one of {case_sensitive} or {case_insensitive}"
+            )
+        else:
+            text = str(value)
+        return Part(text=text, parent=parent_node)
 
 
 def _print_node(
@@ -301,31 +316,35 @@ def _replace_placeholder(
     else:
         match placeholder_type:
             case PlaceholderType.COLUMN:
-                text = _safely_convert_placeholder_value(
-                    value, allow_numeric=ctx.allow_numeric, case_sensitive=ctx.columns
+                new_node = _safely_convert_placeholder_value(
+                    value,
+                    allow_numeric=ctx.allow_numeric,
+                    case_sensitive=ctx.columns,
+                    parent_node=node.parent,
                 )
-                new_node = Part(text=text, parent=node.parent)
             case PlaceholderType.FRAME:
-                text = _safely_convert_placeholder_value(value, value_type=int)
-                new_node = Part(text=text, parent=node.parent)
-            case PlaceholderType.LOCK:
-                text = _safely_convert_placeholder_value(
-                    value, case_insensitive={"", "nowait", "skip locked"}
+                new_node = _safely_convert_placeholder_value(
+                    value, value_type=int, parent_node=node.parent
                 )
-                new_node = Part(text=text, parent=node.parent)
+            case PlaceholderType.LOCK:
+                new_node = _safely_convert_placeholder_value(
+                    value, case_insensitive={"", "nowait", "skip locked"}, parent_node=node.parent
+                )
             case PlaceholderType.SORT:
-                text = _safely_convert_placeholder_value(
+                new_node = _safely_convert_placeholder_value(
                     value,
                     allow_numeric=ctx.allow_numeric,
                     case_sensitive=ctx.columns,
                     case_insensitive={"asc", "ascending", "desc", "descending"},
+                    parent_node=node.parent,
                 )
-                new_node = Part(text=text, parent=node.parent)
             case PlaceholderType.TABLE:
-                text = _safely_convert_placeholder_value(
-                    value, allow_numeric=ctx.allow_numeric, case_sensitive=ctx.tables
+                new_node = _safely_convert_placeholder_value(
+                    value,
+                    allow_numeric=ctx.allow_numeric,
+                    case_sensitive=ctx.tables,
+                    parent_node=node.parent,
                 )
-                new_node = Part(text=text, parent=node.parent)
             case _:
                 if (
                     value is RewritingValue.IS_NULL or value is RewritingValue.IS_NOT_NULL
@@ -339,7 +358,9 @@ def _replace_placeholder(
                     new_node = Part(text="NULL", parent=node.parent)
                 else:
                     new_node = node
-                    result.append(value)  # type: ignore[arg-type]
+
+        if isinstance(new_node, Placeholder):
+            result.append(new_node.value)  # type: ignore[arg-type]
 
         if isinstance(node.parent, (Expression, ExpressionGroup, Function, Group)):
             node.parent.parts[index] = new_node
